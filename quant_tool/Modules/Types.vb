@@ -1,3 +1,4 @@
+Attribute VB_Name = "Types"
 Option Explicit
 
 ' ## Information about where single trade information is stored in the workbook
@@ -237,11 +238,25 @@ Public Type InstParams_FRA
     Fixing As Variant
 End Type
 
+'-------------------------------------------------------------------------------------------
+' NAME:    InstParams_FVN
+'
+' PURPOSE: Define Parameters. To be used in GetInstParams_FVN
+'
+' NOTES:
+'
+' INPUT OPTIONS:
+'
+' MODIFIED:
+'    30JAN2019 - KW - Add LateType
+'
+'-------------------------------------------------------------------------------------------
 Public Type InstParams_FVN
     TradeID As String
     ValueDate As Long
     MatDate As Long
     DelivDate As Long
+    LateType as String
     IsBuy As Boolean
     CCY_Fgn As String
     CCY_Dom As String

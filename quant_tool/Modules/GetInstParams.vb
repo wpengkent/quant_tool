@@ -1,3 +1,4 @@
+Attribute VB_Name = "GetInstParams"
 Option Explicit
 ' ## Functions to read instrument parameters from a row of a booking sheet
 Public Function GetInstParams_RngAcc(rng_Input As Range, dic_StaticInfo As Dictionary, Optional str_TradeID As String = "-") As InstParams_RngAcc
@@ -1138,6 +1139,19 @@ Public Function GetInstParams_FRA(rng_Input As Range, dic_StaticInfo As Dictiona
     GetInstParams_FRA = fld_Output
 End Function
 
+'-------------------------------------------------------------------------------------------
+' NAME:    GetInstParams_FVN
+'
+' PURPOSE: Get FX Vanilla parameters
+'
+' NOTES:
+'
+' INPUT OPTIONS:
+'
+' MODIFIED:
+'    30JAN2019 - KW - Add Late Type (Late Cash, Late Delivery, Late Delivery ATM Spot)
+'
+'-------------------------------------------------------------------------------------------
 Public Function GetInstParams_FVN(rng_Input As Range, dic_StaticInfo As Dictionary, Optional str_TradeID As String = "-") As InstParams_FVN
     ' ## Input is a horizontal range containing the parameter values
     Dim fld_Output As InstParams_FVN, fld_Premium As SCFParams
@@ -1159,6 +1173,13 @@ Public Function GetInstParams_FVN(rng_Input As Range, dic_StaticInfo As Dictiona
 
         int_ctr = int_ctr + 1
         .DelivDate = rng_Input(1, int_ctr).Value
+
+        int_ctr = int_ctr + 1
+        If rng_Input(1, int_ctr).Value = "-" Then
+            .LateType = "STANDARD"
+        Else
+            .LateType = UCase(rng_Input(1, int_ctr).Value)
+        End If
 
         int_ctr = int_ctr + 1
         .IsBuy = (UCase(rng_Input(1, int_ctr).Value) = "B")
