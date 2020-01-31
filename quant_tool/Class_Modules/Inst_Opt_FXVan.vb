@@ -143,7 +143,7 @@ Public Property Get marketvalue() As Double
     Dim dbl_VolPct_XY As Double, dbl_ATMVol_XY As Double, dbl_ATMVol_XQ As Double, dbl_ATMVol_YQ As Double, dbl_Correl_XQ As Double
     Dim dbl_DF_ValSpot As Double: dbl_DF_ValSpot = irc_SpotDiscCurve.Lookup_Rate(lng_ValDate, lng_SpotDate, "DF", , , True)
     Dim dbl_DF_MatSpot As Double: dbl_DF_MatSpot = irc_DiscCurve.Lookup_Rate(lng_SpotDate, lng_MatSpotDate, "DF", , , True)
-    Dim dbl_DF_MatSpot_Std As Double: dbl_DF_MatSpot = irc_DiscCurve.Lookup_Rate(lng_SpotDate, lng_MatSpotDate_Std, "DF", , , True)
+    Dim dbl_DF_MatSpot_Std As Double: dbl_DF_MatSpot_Std = irc_DiscCurve.Lookup_Rate(lng_SpotDate, lng_MatSpotDate_Std, "DF", , , True)
 
     dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
 
@@ -195,27 +195,17 @@ Public Property Get marketvalue() As Double
             Select Case fld_Params.LateType
                 '------------------------------------------------
                 ' Standard type, fix at T+2, deliver at T+2
-                '------------------------------------------------
-                Case "STANDARD"
-                    dbl_UnitVal = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
-                                  * dbl_DF_MatSpot * dbl_DF_ValSpot
-                '------------------------------------------------
                 ' Late Cash, fix at T+2, deliver at T+3
-                '------------------------------------------------
-                Case "LATE CASH"
-                    dbl_UnitVal = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
-                                  * dbl_DF_MatSpot * dbl_DF_ValSpot
-                '------------------------------------------------
                 ' Late Delivery, fix at T+3, deliver at T+3
                 '------------------------------------------------
-                Case "LATE DELIVERY"
+                Case "STANDARD", "LATE CASH", "LATE DELIVERY"
                     dbl_UnitVal = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
                                   * dbl_DF_MatSpot * dbl_DF_ValSpot
                 '------------------------------------------------
                 ' Late Delivery ATM Spot, fix at T+2, deliver at T+3
                 '------------------------------------------------
                 Case "LATE DELIVERY ATM SPOT"
-                    dbl_UnitVal = Late_Del_Atm_Spot(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
+                    dbl_UnitVal = Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
             End Select
 
         Case DetailedCat.Eur_Quanto
@@ -474,7 +464,7 @@ Public Function Calc_Delta() As Double
                 dbl_ShiftedVol, (fld_Params.CCY_Payout = fld_Params.CCY_Dom), fld_Params.CSFactor) _
                 * dbl_DF_MatSpot
 
-        Case DetailedCat.Eur_Standard, DetailedCat.Eur_Quanto
+        Case DetailedCat.Eur_Standard
 
             Select Case fld_Params.LateType
                 Case "LATE DELIVERY ATM SPOT"
@@ -484,7 +474,7 @@ Public Function Calc_Delta() As Double
                     dbl_Fwd = Forward()
                     dbl_Spot = Spot()
                     dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
-                    dbl_UnitValSpotShockUp = Late_Del_Atm_Spot(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
+                    dbl_UnitValSpotShockUp = Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
 
                     ' Shock down
                     Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -492,7 +482,7 @@ Public Function Calc_Delta() As Double
                     dbl_Fwd = Forward()
                     dbl_Spot = Spot()
                     dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
-                    dbl_UnitValSpotShockDown = Late_Del_Atm_Spot(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
+                    dbl_UnitValSpotShockDown = Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
 
                 Case Else
                     ' Shock up
@@ -843,7 +833,14 @@ Private Function GetVol(enu_Pair As VolPair, dbl_LookupStrike As Double) As Doub
 
     ' Obtain the vol from the curve
     If fld_Params.IsSmile = True And dbl_LookupStrike <> -1 Then
-        dbl_Output = fxv_VolCurve.Lookup_SmileVol(lng_MatDate, dbl_LookupStrike, , fld_Params.IsRescaling)
+        If fld_Params.LateType <> "LATE DELIVERY" Then
+            dbl_Output = fxv_VolCurve.Lookup_SmileVol(lng_MatDate, dbl_LookupStrike, , fld_Params.IsRescaling)
+        Else
+            ' Late Delivery uses forward fixed in delivery date later than T+2
+            Dim dbl_Fwd As Double
+            dbl_Fwd = Forward()
+            dbl_Output = fxv_VolCurve.Lookup_SmileVol(lng_MatDate, dbl_LookupStrike, , fld_Params.IsRescaling, , dbl_Fwd)
+        End If
     Else
         dbl_Output = fxv_VolCurve.Lookup_ATMVol(lng_MatDate)
     End If
@@ -919,10 +916,9 @@ End Function
 ' MODIFIED:
 '    31JAN2020 - KW - Creation
 '-------------------------------------------------------------------------------------------
-Private Function Late_Del_Atm_Spot(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std) As Double
+Private Function Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std) As Double
 
     Dim dbl_UnitAoN As Double, dbl_UnitLateCash As Double, dbl_Output As Double, dbl_df_diff As Double
-    Dim str_TargetCCy As String
 
     '------------------------------------------------
     ' Obtain DF of DOM and FOR between T+2 and delivery

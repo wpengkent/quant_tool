@@ -296,8 +296,21 @@ Public Function Lookup_ATMVol(lng_date As Long, Optional bln_GetOrig As Boolean 
     Lookup_ATMVol = dbl_Output
 End Function
 
+'-------------------------------------------------------------------------------------------
+' NAME:    Lookup_SmileVol
+'
+' PURPOSE: Bootstrap FX Smile
+'
+' NOTES:
+'
+' INPUT OPTIONS:
+'
+' MODIFIED:
+'    31JAN2020 - KW - Add parameter dbl_fwd_input to allow user overwrite forward rate
+'
+'-------------------------------------------------------------------------------------------
 Public Function Lookup_SmileVol(lng_LookupDateRaw As Long, dbl_Strike As Double, Optional bln_GetOrig As Boolean = False, _
-    Optional bln_AxisRescale As Boolean = True, Optional bln_CalcAxisOnly As Boolean = False) As Double
+    Optional bln_AxisRescale As Boolean = True, Optional bln_CalcAxisOnly As Boolean = False, Optional dbl_fwd_input As Double = 0) As Double
     ' Determine dates
     Dim lng_LookupDate As Long: lng_LookupDate = CleanLookupDate(lng_LookupDateRaw)
     Dim lng_LeftPillarDate As Long: lng_LeftPillarDate = Lookup_PrevOptionMat(lng_LookupDate, bln_GetOrig)
@@ -392,7 +405,12 @@ Public Function Lookup_SmileVol(lng_LookupDateRaw As Long, dbl_Strike As Double,
     End If
 
     dbl_LookupATMVol = Me.Lookup_ATMVol(lng_LookupDate, bln_GetOrig)
-    dbl_LookupFwd = fxs_Spots.Lookup_Fwd(str_CCY_Fgn, str_CCY_Dom, lng_LookupDate, , bln_GetOrig)
+
+    If dbl_fwd_input = 0 Then
+        dbl_LookupFwd = fxs_Spots.Lookup_Fwd(str_CCY_Fgn, str_CCY_Dom, lng_LookupDate, , bln_GetOrig)
+    Else
+        dbl_LookupFwd = dbl_fwd_input
+    End IF
 
     ' Static parameters
     Dim lng_SpotDate As Long: lng_SpotDate = cyGetFXSpotDate(str_CCY_Smile, lng_ValDate, dic_GlobalStaticInfo)
