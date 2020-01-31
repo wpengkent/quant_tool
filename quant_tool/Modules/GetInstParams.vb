@@ -1,4 +1,3 @@
-Attribute VB_Name = "GetInstParams"
 Option Explicit
 ' ## Functions to read instrument parameters from a row of a booking sheet
 Public Function GetInstParams_RngAcc(rng_Input As Range, dic_StaticInfo As Dictionary, Optional str_TradeID As String = "-") As InstParams_RngAcc

@@ -1,4 +1,3 @@
-Attribute VB_Name = "Types"
 Option Explicit
 
 ' ## Information about where single trade information is stored in the workbook
