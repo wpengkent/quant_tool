@@ -1,12 +1,3 @@
-VERSION 1.0 CLASS
-BEGIN
-  MultiUse = -1  'True
-END
-Attribute VB_Name = "Inst_Opt_FXVan"
-Attribute VB_GlobalNameSpace = False
-Attribute VB_Creatable = False
-Attribute VB_PredeclaredId = False
-Attribute VB_Exposed = False
 Option Explicit
 
 Private Enum DetailedCat
@@ -39,7 +30,7 @@ Private dbl_TimeToMat As Double, dbl_TimeEstPeriod As Double
 Private dic_GlobalStaticInfo As Dictionary, dic_CurveDependencies As Dictionary, map_Rules As MappingRules
 Private fld_Params As InstParams_FVN
 Private int_Sign As Integer, dbl_Strike As Double
-Private lng_MatDate As Long, lng_MatSpotDate As Long
+Private lng_MatDate As Long, lng_MatSpotDate As Long, lng_MatSpotDate_Std as Long
 Private bln_IsQuanto As Boolean, enu_Payoff As EuropeanPayoff
 Private str_Pair_XY As String, str_Pair_XQ As String, str_Pair_YQ As String
 
@@ -105,7 +96,18 @@ Public Sub Initialize(fld_ParamsInput As InstParams_FVN, Optional dic_CurveSet A
     dbl_Strike = fld_Params.strike
     lng_MatDate = fld_Params.MatDate
 
-    lng_MatSpotDate = cyGetFXCrossSpotDate(fld_Params.CCY_Fgn, fld_Params.CCY_Dom, lng_MatDate, dic_GlobalStaticInfo)
+    '------------------------------------------------
+    ' Delivery date, T+2 for standard type
+    '------------------------------------------------
+    Select Case fld_Params.LateType
+        Case "STANDARD"
+            lng_MatSpotDate = cyGetFXCrossSpotDate(fld_Params.CCY_Fgn, fld_Params.CCY_Dom, lng_MatDate, dic_GlobalStaticInfo)
+        Case "LATE DELIVERY ATM SPOT"
+            lng_MatSpotDate_Std = cyGetFXCrossSpotDate(fld_Params.CCY_Fgn, fld_Params.CCY_Dom, lng_MatDate, dic_GlobalStaticInfo)
+            lng_MatSpotDate = fld_Params.DelivDate
+        Case Else
+            lng_MatSpotDate = fld_Params.DelivDate
+    End Select
 
     ' Initialize dynamic variables
     Call Me.SetValDate(fld_Params.ValueDate)
@@ -141,6 +143,7 @@ Public Property Get marketvalue() As Double
     Dim dbl_VolPct_XY As Double, dbl_ATMVol_XY As Double, dbl_ATMVol_XQ As Double, dbl_ATMVol_YQ As Double, dbl_Correl_XQ As Double
     Dim dbl_DF_ValSpot As Double: dbl_DF_ValSpot = irc_SpotDiscCurve.Lookup_Rate(lng_ValDate, lng_SpotDate, "DF", , , True)
     Dim dbl_DF_MatSpot As Double: dbl_DF_MatSpot = irc_DiscCurve.Lookup_Rate(lng_SpotDate, lng_MatSpotDate, "DF", , , True)
+    Dim dbl_DF_MatSpot_Std As Double: dbl_DF_MatSpot = irc_DiscCurve.Lookup_Rate(lng_SpotDate, lng_MatSpotDate_Std, "DF", , , True)
 
     dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
 
@@ -152,7 +155,6 @@ Public Property Get marketvalue() As Double
         dbl_Correl_XQ = Calc_QuantoCorrel(dbl_ATMVol_XY, dbl_ATMVol_XQ, dbl_ATMVol_YQ)
         dbl_Fwd = dbl_Fwd * Calc_DriftAdjFactor(dbl_ATMVol_XY, dbl_ATMVol_YQ, dbl_Correl_XQ, dbl_TimeToMat)
     End If
-    'Debug.Print fxv_Vols_XY.Lookup_SmileSlope(fld_Params.MatDate, dbl_Strike)
 
     ' Determine smile correction for digitals
     Dim dbl_Vega As Double, dbl_Gamma As Double, dbl_Vanna As Double, dbl_SmileSlope As Double, dbl_SmileCorrection_Digital As Double
@@ -174,9 +176,6 @@ Public Property Get marketvalue() As Double
             dbl_UnitVal = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, _
                 enu_Payoff) * dbl_DF_MatSpot * dbl_DF_ValSpot
         Case DetailedCat.Eur_Digital
-            ' ## Currently only matches Murex for the smile off case
-            'dbl_UnitVal = (Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, _
-                enu_Payoff) * dbl_DF_MatSpot + dbl_SmileCorrection_Digital) * dbl_DF_ValSpot
             dbl_UnitVal = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot)
         Case DetailedCat.Eur_DigitalCS
             If fld_Params.IsSmile = True Then
@@ -195,7 +194,7 @@ Public Property Get marketvalue() As Double
             '------------------------------------------------
             Select Case fld_Params.LateType
                 '------------------------------------------------
-                ' Standard type, deliver at T+2
+                ' Standard type, fix at T+2, deliver at T+2
                 '------------------------------------------------
                 Case "STANDARD"
                     dbl_UnitVal = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
@@ -215,9 +214,8 @@ Public Property Get marketvalue() As Double
                 '------------------------------------------------
                 ' Late Delivery ATM Spot, fix at T+2, deliver at T+3
                 '------------------------------------------------
-                Case "LATE DELIVERY"
-                    dbl_UnitVal = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
-                                  * dbl_DF_MatSpot * dbl_DF_ValSpot
+                Case "LATE DELIVERY ATM SPOT"
+                    dbl_UnitVal = Late_Del_Atm_Spot(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
             End Select
 
         Case DetailedCat.Eur_Quanto
@@ -254,7 +252,17 @@ Private Property Get Spot() As Double
 End Property
 
 Private Property Get Forward() As Double
-    Forward = fxs_Spots.Lookup_Fwd(fld_Params.CCY_Fgn, fld_Params.CCY_Dom, lng_MatDate)
+    '------------------------------------------------------------
+    ' Late Delivery Type, Forward is fixed at late delivery date
+    ' Other types are always fixed at T+2
+    '------------------------------------------------------------
+    Select Case fld_Params.LateType
+        Case "LATE DELIVERY"
+            Forward = fxs_Spots.Lookup_Fwd(fld_Params.CCY_Fgn, fld_Params.CCY_Dom, fld_Params.DelivDate, False)
+        Case Else
+            Forward = fxs_Spots.Lookup_Fwd(fld_Params.CCY_Fgn, fld_Params.CCY_Dom, lng_MatDate)
+    End Select
+
 End Property
 
 Private Property Get DetailedCategory() As DetailedCat
@@ -371,6 +379,7 @@ Public Function Calc_Delta() As Double
     Dim dbl_VolPct_XY As Double, dbl_ATMVol_XY As Double, dbl_ATMVol_XQ As Double, dbl_ATMVol_YQ As Double, dbl_Correl_XQ As Double
     Dim dbl_DF_ValSpot As Double: dbl_DF_ValSpot = irc_SpotDiscCurve.Lookup_Rate(lng_ValDate, lng_SpotDate, "DF", , , True)
     Dim dbl_DF_MatSpot As Double: dbl_DF_MatSpot = irc_DiscCurve.Lookup_Rate(lng_SpotDate, lng_MatSpotDate, "DF", , , True)
+    Dim dbl_DF_MatSpot_Std As Double: dbl_DF_MatSpot = irc_DiscCurve.Lookup_Rate(lng_SpotDate, lng_MatSpotDate_Std, "DF", , , True)
 
     Dim dbl_UnitValSpotShockUp As Double, dbl_UnitValSpotShockDown As Double, dbl_Output As Double
     Dim dbl_ShockSize As Double: dbl_ShockSize = 0.01
@@ -467,6 +476,44 @@ Public Function Calc_Delta() As Double
 
         Case DetailedCat.Eur_Standard, DetailedCat.Eur_Quanto
 
+            Select Case fld_Params.LateType
+                Case "LATE DELIVERY ATM SPOT"
+                    ' Shock up
+                    Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
+                    Call fxs_Spots.Scen_ApplyCurrent
+                    dbl_Fwd = Forward()
+                    dbl_Spot = Spot()
+                    dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
+                    dbl_UnitValSpotShockUp = Late_Del_Atm_Spot(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
+
+                    ' Shock down
+                    Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
+                    Call fxs_Spots.Scen_ApplyCurrent
+                    dbl_Fwd = Forward()
+                    dbl_Spot = Spot()
+                    dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
+                    dbl_UnitValSpotShockDown = Late_Del_Atm_Spot(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
+
+                Case Else
+                    ' Shock up
+                    Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
+                    Call fxs_Spots.Scen_ApplyCurrent
+                    dbl_Fwd = Forward()
+                    dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
+                    dbl_UnitValSpotShockUp = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
+                        * dbl_DF_MatSpot
+
+                    ' Shock down
+                    Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
+                    Call fxs_Spots.Scen_ApplyCurrent
+                    dbl_Fwd = Forward()
+                    dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
+                    dbl_UnitValSpotShockDown = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
+                        * dbl_DF_MatSpot
+            End Select
+
+        Case DetailedCat.Eur_Quanto
+
             ' Shock up
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
             Call fxs_Spots.Scen_ApplyCurrent
@@ -534,9 +581,7 @@ End Function
 ' INPUT OPTIONS:
 '
 ' MODIFIED:
-'    03DEC2019 - KW - Remove dbl_DF_ValSpot from dbl_UnitValSpotShockUp and dbl_UnitValSpotShockDown
-'                     to reconcile MUREX spot gamma
-'                   - Project digital option shock up/down price to spot date
+'
 '-------------------------------------------------------------------------------------------
 Public Function Calc_Gamma() As Double
 
@@ -547,6 +592,7 @@ Public Function Calc_Gamma() As Double
     Dim dbl_VolPct_XY As Double, dbl_ATMVol_XY As Double, dbl_ATMVol_XQ As Double, dbl_ATMVol_YQ As Double, dbl_Correl_XQ As Double
     Dim dbl_DF_ValSpot As Double: dbl_DF_ValSpot = irc_SpotDiscCurve.Lookup_Rate(lng_ValDate, lng_SpotDate, "DF", , , True)
     Dim dbl_DF_MatSpot As Double: dbl_DF_MatSpot = irc_DiscCurve.Lookup_Rate(lng_SpotDate, lng_MatSpotDate, "DF", , , True)
+    Dim dbl_DF_MatSpot_Std As Double: dbl_DF_MatSpot = irc_DiscCurve.Lookup_Rate(lng_SpotDate, lng_MatSpotDate_Std, "DF", , , True)
 
     Dim dbl_UnitValBase As Double, dbl_UnitValSpotShockUp As Double, dbl_UnitValSpotShockDown As Double
     Dim dbl_SpotDelta As Double, dbl_Output As Double
@@ -571,7 +617,7 @@ Public Function Calc_Gamma() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_Fwd = Forward()
             dbl_UnitValBase = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, _
-                enu_Payoff) * dbl_DF_MatSpot
+                enu_Payoff) * dbl_DF_MatSpot * dbl_DF_ValSpot
 
             ' Shock up
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
@@ -579,7 +625,7 @@ Public Function Calc_Gamma() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_Fwd = Forward()
             dbl_UnitValSpotShockUp = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, _
-                enu_Payoff) * dbl_DF_MatSpot
+                enu_Payoff) * dbl_DF_MatSpot * dbl_DF_ValSpot
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -587,37 +633,31 @@ Public Function Calc_Gamma() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_Fwd = Forward()
             dbl_UnitValSpotShockDown = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, _
-                enu_Payoff) * dbl_DF_MatSpot
+                enu_Payoff) * dbl_DF_MatSpot * dbl_DF_ValSpot
 
         Case DetailedCat.Eur_Digital
 
             ' Base
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_Spot = Spot()
-            '------------------------------------------------
-            ' Project price from valuation date to spot date
-            '------------------------------------------------
-            dbl_UnitValBase = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot) / dbl_DF_ValSpot
+
+            dbl_UnitValBase = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot)
 
             ' Shock up
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
             Call fxs_Spots.Scen_ApplyCurrent
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_Spot = Spot()
-            '------------------------------------------------
-            ' Project price from valuation date to spot date
-            '------------------------------------------------
-            dbl_UnitValSpotShockUp = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot) / dbl_DF_ValSpot
+
+            dbl_UnitValSpotShockUp = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot)
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
             Call fxs_Spots.Scen_ApplyCurrent
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_Spot = Spot()
-            '------------------------------------------------
-            ' Project price from valuation date to spot date
-            '------------------------------------------------
-            dbl_UnitValSpotShockDown = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot) / dbl_DF_ValSpot
+
+            dbl_UnitValSpotShockDown = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot)
 
         Case DetailedCat.Eur_DigitalCS
 
@@ -633,7 +673,7 @@ Public Function Calc_Gamma() As Double
             dbl_Fwd = Forward()
             dbl_UnitValBase = Calc_BSPrice_DigitalCS(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, _
                 dbl_ShiftedVol, (fld_Params.CCY_Payout = fld_Params.CCY_Dom), fld_Params.CSFactor) _
-                * dbl_DF_MatSpot
+                * dbl_DF_MatSpot * dbl_DF_ValSpot
 
             ' Shock up
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
@@ -642,7 +682,7 @@ Public Function Calc_Gamma() As Double
             dbl_Fwd = Forward()
             dbl_UnitValSpotShockUp = Calc_BSPrice_DigitalCS(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, _
                 dbl_ShiftedVol, (fld_Params.CCY_Payout = fld_Params.CCY_Dom), fld_Params.CSFactor) _
-                * dbl_DF_MatSpot
+                * dbl_DF_MatSpot * dbl_DF_ValSpot
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -651,7 +691,7 @@ Public Function Calc_Gamma() As Double
             dbl_Fwd = Forward()
             dbl_UnitValSpotShockDown = Calc_BSPrice_DigitalCS(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, _
                 dbl_ShiftedVol, (fld_Params.CCY_Payout = fld_Params.CCY_Dom), fld_Params.CSFactor) _
-                * dbl_DF_MatSpot
+                * dbl_DF_MatSpot * dbl_DF_ValSpot
 
         Case DetailedCat.Eur_Standard, DetailedCat.Eur_Quanto
 
@@ -659,7 +699,7 @@ Public Function Calc_Gamma() As Double
             dbl_Fwd = Forward()
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_UnitValBase = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
-                * dbl_DF_MatSpot
+                * dbl_DF_MatSpot * dbl_DF_ValSpot
 
             ' Shock up
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
@@ -667,7 +707,7 @@ Public Function Calc_Gamma() As Double
             dbl_Fwd = Forward()
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_UnitValSpotShockUp = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
-                * dbl_DF_MatSpot
+                * dbl_DF_MatSpot * dbl_DF_ValSpot
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -675,7 +715,7 @@ Public Function Calc_Gamma() As Double
             dbl_Fwd = Forward()
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_UnitValSpotShockDown = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
-                * dbl_DF_MatSpot
+                * dbl_DF_MatSpot * dbl_DF_ValSpot
 
         Case DetailedCat.Amr_Standard
 
@@ -683,7 +723,7 @@ Public Function Calc_Gamma() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_Spot = Spot()
             dbl_UnitValBase = Calc_BAW_American(fld_Params.Direction, dbl_Spot, dbl_Fwd, dbl_Strike, dbl_VolPct_XY, dbl_DF_MatSpot, _
-                dbl_TimeToMat, dbl_TimeEstPeriod)
+                dbl_TimeToMat, dbl_TimeEstPeriod) * dbl_DF_ValSpot
 
             ' Shock up
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
@@ -691,7 +731,7 @@ Public Function Calc_Gamma() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_Spot = Spot()
             dbl_UnitValSpotShockUp = Calc_BAW_American(fld_Params.Direction, dbl_Spot, dbl_Fwd, dbl_Strike, dbl_VolPct_XY, dbl_DF_MatSpot, _
-                dbl_TimeToMat, dbl_TimeEstPeriod)
+                dbl_TimeToMat, dbl_TimeEstPeriod) * dbl_DF_ValSpot
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -699,7 +739,7 @@ Public Function Calc_Gamma() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
             dbl_Spot = Spot()
             dbl_UnitValSpotShockDown = Calc_BAW_American(fld_Params.Direction, dbl_Spot, dbl_Fwd, dbl_Strike, dbl_VolPct_XY, dbl_DF_MatSpot, _
-                dbl_TimeToMat, dbl_TimeEstPeriod)
+                dbl_TimeToMat, dbl_TimeEstPeriod) * dbl_DF_ValSpot
 
         Case Else:
 
@@ -813,57 +853,116 @@ End Function
 
 Private Function BSDigital(dbl_Strike As Double, dbl_Spot As Double, dbl_DF_ValSpot As Double, dbl_DF_MatSpot As Double) As Double
 
-Dim dbl_SpotDelta As Double, dbl_UnitValSpotShockUp As Double, dbl_UnitValSpotShockDown As Double, dbl_ShockSize As Double, dbl_Fwd As Double, dbl_VolPct_XY As Double, dbl_Output As Double
-Dim str_TargetCCy As String
+    Dim dbl_SpotDelta As Double, dbl_UnitValSpotShockUp As Double, dbl_UnitValSpotShockDown As Double, dbl_ShockSize As Double, dbl_Fwd As Double, dbl_VolPct_XY As Double, dbl_Output As Double
+    Dim str_TargetCCy As String
 
-dbl_ShockSize = 0.01
+    dbl_ShockSize = 0.01
 
-dbl_Spot = Spot()
+    dbl_Spot = Spot()
 
-If fld_Params.CCY_Fgn = "USD" Then
-    str_TargetCCy = fld_Params.CCY_Dom
-ElseIf fld_Params.CCY_Dom = "USD" Then
-    str_TargetCCy = fld_Params.CCY_Fgn
-ElseIf (fxs_Spots.Lookup_Quotation(fld_Params.CCY_Dom) = "INDIRECT" And fxs_Spots.Lookup_Quotation(fld_Params.CCY_Fgn) = "INDIRECT") Then
-    str_TargetCCy = fld_Params.CCY_Fgn
-Else
-    str_TargetCCy = fld_Params.CCY_Dom
-End If
+    If fld_Params.CCY_Fgn = "USD" Then
+        str_TargetCCy = fld_Params.CCY_Dom
+    ElseIf fld_Params.CCY_Dom = "USD" Then
+        str_TargetCCy = fld_Params.CCY_Fgn
+    ElseIf (fxs_Spots.Lookup_Quotation(fld_Params.CCY_Dom) = "INDIRECT" And fxs_Spots.Lookup_Quotation(fld_Params.CCY_Fgn) = "INDIRECT") Then
+        str_TargetCCy = fld_Params.CCY_Fgn
+    Else
+        str_TargetCCy = fld_Params.CCY_Dom
+    End If
 
-Call fxs_Spots.Scen_StoreOrigRate
-Call fxs_Spots.Scen_TempRate
+    Call fxs_Spots.Scen_StoreOrigRate
+    Call fxs_Spots.Scen_TempRate
 
-Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
-Call fxs_Spots.Scen_ApplyCurrent
-dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
-dbl_Fwd = Forward()
-dbl_UnitValSpotShockUp = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, 1) * dbl_DF_MatSpot
-Call fxs_Spots.Scen_ApplyBase
+    Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
+    Call fxs_Spots.Scen_ApplyCurrent
+    dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
+    dbl_Fwd = Forward()
+    dbl_UnitValSpotShockUp = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, 1) * dbl_DF_MatSpot
+    Call fxs_Spots.Scen_ApplyBase
 
-Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
-Call fxs_Spots.Scen_ApplyCurrent
-dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
-dbl_Fwd = Forward()
-dbl_UnitValSpotShockDown = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, 1) * dbl_DF_MatSpot
-Call fxs_Spots.Scen_ApplyBase
+    Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
+    Call fxs_Spots.Scen_ApplyCurrent
+    dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
+    dbl_Fwd = Forward()
+    dbl_UnitValSpotShockDown = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, 1) * dbl_DF_MatSpot
+    Call fxs_Spots.Scen_ApplyBase
 
-dbl_SpotDelta = (dbl_UnitValSpotShockUp - dbl_UnitValSpotShockDown) / (2 * dbl_ShockSize / 100 * dbl_Spot)
+    dbl_SpotDelta = (dbl_UnitValSpotShockUp - dbl_UnitValSpotShockDown) / (2 * dbl_ShockSize / 100 * dbl_Spot)
 
-dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
-dbl_Fwd = Forward()
+    dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
+    dbl_Fwd = Forward()
 
-If enu_Payoff = EuropeanPayoff.Digital_AoN Then
-    dbl_Output = fld_Params.Direction * dbl_Spot * dbl_SpotDelta * dbl_DF_ValSpot
+    If enu_Payoff = EuropeanPayoff.Digital_AoN Then
+        dbl_Output = fld_Params.Direction * dbl_Spot * dbl_SpotDelta * dbl_DF_ValSpot
 
-Else
-    dbl_Output = fld_Params.Direction * (dbl_Spot * dbl_SpotDelta - Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, 1) _
-                * dbl_DF_MatSpot) * dbl_DF_ValSpot
-End If
+    Else
+        dbl_Output = fld_Params.Direction * (dbl_Spot * dbl_SpotDelta - Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, 1) _
+                    * dbl_DF_MatSpot) * dbl_DF_ValSpot
+    End If
 
-Call fxs_Spots.Scen_RestoreOrigRate
-BSDigital = dbl_Output
+    Call fxs_Spots.Scen_RestoreOrigRate
+    BSDigital = dbl_Output
 End Function
 
+'-------------------------------------------------------------------------------------------
+' NAME:    Late_Del_Atm_Spot
+'
+' PURPOSE: Calculate Late Delivery ATM Spot market value
+'
+' NOTES: Late Delivery ATM Spot is FX vanilla option, fix at T+2, delivery later than T+2
+'        Can be replicated using Late Cash and AoN digital option
+'
+' INPUT OPTIONS:
+'   dbl_DF_MatSpot - DF from late delivery date to spot
+'   dbl_DF_MatSpot_Std - DF from T+2 to spot
+'
+' MODIFIED:
+'    31JAN2020 - KW - Creation
+'-------------------------------------------------------------------------------------------
+Private Function Late_Del_Atm_Spot(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std) As Double
+
+    Dim dbl_UnitAoN As Double, dbl_UnitLateCash As Double, dbl_Output As Double, dbl_df_diff As Double
+    Dim str_TargetCCy As String
+
+    '------------------------------------------------
+    ' Obtain DF of DOM and FOR between T+2 and delivery
+    '------------------------------------------------
+    ' Gather curves
+    Dim irc_Fgn As Data_IRCurve, irc_Dom As Data_IRCurve
+    Dim str_Curve_Fgn As String: str_Curve_Fgn = dic_FXCurveNames(fld_Params.CCY_Fgn)
+    Dim str_Curve_Dom As String: str_Curve_Dom = dic_FXCurveNames(fld_Params.CCY_Dom)
+    ' Variable to store DF between T+2 and delivery
+    Dim dbl_Fgn_LateDel_DF As Double, dbl_Dom_LateDel_DF As Double
+
+    Set irc_Fgn = GetObject_IRCurve(str_Curve_Fgn, True, False)
+    Set irc_Dom = GetObject_IRCurve(str_Curve_Dom, True, False)
+
+    dbl_Fgn_LateDel_DF = irc_Fgn.Lookup_Rate(lng_MatSpotDate_Std, lng_MatSpotDate, "DF")
+    dbl_Dom_LateDel_DF = irc_Dom.Lookup_Rate(lng_MatSpotDate_Std, lng_MatSpotDate, "DF")
+
+    '--------------------------------
+    ' Calculate difference between DF
+    '--------------------------------
+    dbl_df_diff = dbl_Fgn_LateDel_DF - dbl_Dom_LateDel_DF
+
+    '----------------------
+    ' Calculate AoN
+    '----------------------
+    dbl_UnitAoN = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot_Std)
+
+    '----------------------
+    ' Calculate Late Cash
+    '----------------------
+    dbl_UnitLateCash = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
+                       * dbl_DF_MatSpot * dbl_DF_ValSpot
+
+    '---------------------------------
+    ' Calculate Latr Delivery ATM Spot
+    '---------------------------------
+    dbl_Output =  dbl_UnitLateCash + fld_Params.Direction * dbl_df_diff * dbl_UnitLateCash
+
+    Late_Del_Atm_Spot = dbl_Output
+End Function
 
 ' ## METHODS - CALCULATION DETAILS
 Public Sub OutputReport(wks_output As Worksheet)
