@@ -18,6 +18,8 @@ End Enum
 ' Components
 Private scf_Premium As SCF
 
+Private dic_FXCurveNames As Dictionary
+
 ' Curve dependencies
 Private fxs_Spots As Data_FXSpots, irc_DiscCurve As Data_IRCurve, irc_SpotDiscCurve As Data_IRCurve
 Private fxv_Vols_XY As Data_FXVols, fxv_Vols_XQ As Data_FXVols, fxv_Vols_YQ As Data_FXVols
@@ -118,6 +120,8 @@ Public Sub Initialize(fld_ParamsInput As InstParams_FVN, Optional dic_CurveSet A
         fld_Params.CCY_Fgn, fld_Params.CCY_Payout, fld_Params.CCY_PnL))
     If dic_CurveDependencies.Exists(irc_DiscCurve.CurveName) = False Then Call dic_CurveDependencies.Add(irc_DiscCurve.CurveName, True)
     If dic_CurveDependencies.Exists(irc_SpotDiscCurve.CurveName) = False Then Call dic_CurveDependencies.Add(irc_SpotDiscCurve.CurveName, True)
+
+    Set dic_FXCurveNames = map_Rules.Dict_FXCurveNames
 End Sub
 
 '-------------------------------------------------------------------------------------------
@@ -205,7 +209,7 @@ Public Property Get marketvalue() As Double
                 ' Late Delivery ATM Spot, fix at T+2, deliver at T+3
                 '------------------------------------------------
                 Case "LATE DELIVERY ATM SPOT"
-                    dbl_UnitVal = Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std)
+                    dbl_UnitVal = Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_VolPct_XY, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std, enu_Payoff)
             End Select
 
         Case DetailedCat.Eur_Quanto
@@ -916,7 +920,8 @@ End Function
 ' MODIFIED:
 '    31JAN2020 - KW - Creation
 '-------------------------------------------------------------------------------------------
-Private Function Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std) As Double
+Private Function Late_Del_Atm_Spot(dbl_Strike As Double, dbl_Fwd As Double, dbl_Spot As Double, dbl_VolPct_XY As Double, dbl_DF_ValSpot As Double, _
+                                   dbl_DF_MatSpot As Double, dbl_DF_MatSpot_Std As Double, enu_Payoff As EuropeanPayoff) As Double
 
     Dim dbl_UnitAoN As Double, dbl_UnitLateCash As Double, dbl_Output As Double, dbl_df_diff As Double
 
@@ -942,20 +947,22 @@ Private Function Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_DF_ValSpot
     dbl_df_diff = dbl_Fgn_LateDel_DF - dbl_Dom_LateDel_DF
 
     '----------------------
-    ' Calculate AoN
-    '----------------------
-    dbl_UnitAoN = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot_Std)
-
-    '----------------------
     ' Calculate Late Cash
     '----------------------
     dbl_UnitLateCash = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
                        * dbl_DF_MatSpot * dbl_DF_ValSpot
 
+    '----------------------
+    ' Calculate AoN
+    '----------------------
+    enu_Payoff = EuropeanPayoff.Digital_AoN
+    dbl_UnitAoN = BSDigital(dbl_Strike, dbl_Spot, dbl_DF_ValSpot, dbl_DF_MatSpot_Std)
+    enu_Payoff = EuropeanPayoff.Standard
+
     '---------------------------------
     ' Calculate Latr Delivery ATM Spot
     '---------------------------------
-    dbl_Output =  dbl_UnitLateCash + fld_Params.Direction * dbl_df_diff * dbl_UnitLateCash
+    dbl_Output =  dbl_UnitLateCash + fld_Params.Direction * dbl_df_diff * dbl_UnitAoN
 
     Late_Del_Atm_Spot = dbl_Output
 End Function
