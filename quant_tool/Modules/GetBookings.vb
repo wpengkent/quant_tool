@@ -215,8 +215,8 @@ Public Function GetBookings_FVN() As Dictionary
         Call .Add(BookingAttribute.Sheet, wks_Booking)
         Call .Add(BookingAttribute.IDSelection, wks_Booking.Range("A3").Resize(1, 4))
         Call .Add(BookingAttribute.Params, wks_Booking.Range("E3:AA3"))
-        Call .Add(BookingAttribute.Outputs, wks_Booking.Range("AD3").Resize(1, 8))
-        Call .Add(BookingAttribute.BaseChg, wks_Booking.Range("AM3").Resize(1, 2))
+        Call .Add(BookingAttribute.Outputs, wks_Booking.Range("AE3").Resize(1, 8))
+        Call .Add(BookingAttribute.BaseChg, wks_Booking.Range("AN3").Resize(1, 2))
     End With
 
     Set GetBookings_FVN = dic_output
