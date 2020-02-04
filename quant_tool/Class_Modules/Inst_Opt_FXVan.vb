@@ -18,9 +18,8 @@ End Enum
 ' Components
 Private scf_Premium As SCF
 
-Private dic_FXCurveNames As Dictionary
-
 ' Curve dependencies
+Private dic_FXCurveNames As Dictionary
 Private fxs_Spots As Data_FXSpots, irc_DiscCurve As Data_IRCurve, irc_SpotDiscCurve As Data_IRCurve
 Private fxv_Vols_XY As Data_FXVols, fxv_Vols_XQ As Data_FXVols, fxv_Vols_YQ As Data_FXVols
 
@@ -199,15 +198,16 @@ Public Property Get marketvalue() As Double
             Select Case fld_Params.LateType
                 '------------------------------------------------
                 ' Standard type, fix at T+2, deliver at T+2
-                ' Late Cash, fix at T+2, deliver at T+3
-                ' Late Delivery, fix at T+3, deliver at T+3
+                ' Late Cash, fix at T+2, deliver at T+x
+                ' Late Delivery, fix at T+x, diliver at T+x
+                ' Input are depending on late type
                 '------------------------------------------------
                 Case "STANDARD", "LATE CASH", "LATE DELIVERY"
                     dbl_UnitVal = Calc_BSPrice_Vanilla(fld_Params.Direction, dbl_Fwd, dbl_Strike, dbl_TimeToMat, dbl_VolPct_XY, enu_Payoff) _
                                   * dbl_DF_MatSpot * dbl_DF_ValSpot
-                '------------------------------------------------
-                ' Late Delivery ATM Spot, fix at T+2, deliver at T+3
-                '------------------------------------------------
+                '----------------------------------------------------
+                ' Late Delivery ATM Spot, fix at T+2, deliver at T+x
+                '----------------------------------------------------
                 Case "LATE DELIVERY ATM SPOT"
                     dbl_UnitVal = Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_VolPct_XY, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std, enu_Payoff)
             End Select
@@ -247,8 +247,8 @@ End Property
 
 Private Property Get Forward() As Double
     '------------------------------------------------------------
-    ' Late Delivery Type, Forward is fixed at late delivery date
-    ' Other types are always fixed at T+2
+    ' Late Delivery Type: Forward is fixed at late delivery date
+    ' Other types: fixed at T+2
     '------------------------------------------------------------
     Select Case fld_Params.LateType
         Case "LATE DELIVERY"
@@ -362,7 +362,7 @@ End Function
 '    03DEC2019 - KW - Remove dbl_DF_ValSpot from dbl_UnitValSpotShockUp and dbl_UnitValSpotShockDown
 '                     to reconcile MUREX spot delta
 '                   - Project digital option shock up/down price to spot date
-'   03FEB2020 - KW - Add Late Delivery Delta
+'    03FEB2020 - KW - Add Late Delivery Delta
 '
 '-------------------------------------------------------------------------------------------
 Public Function Calc_Delta() As Double
@@ -479,6 +479,9 @@ Public Function Calc_Delta() As Double
                     dbl_Fwd = Forward()
                     dbl_Spot = Spot()
                     dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
+                    '------------------------------------------------
+                    ' Project price from valuation date to spot date
+                    '------------------------------------------------
                     dbl_UnitValSpotShockUp = Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_VolPct_XY, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std, enu_Payoff) / dbl_DF_ValSpot
 
                     ' Shock down
@@ -487,6 +490,9 @@ Public Function Calc_Delta() As Double
                     dbl_Fwd = Forward()
                     dbl_Spot = Spot()
                     dbl_VolPct_XY = GetVol(VolPair.XY, dbl_Strike)
+                    '------------------------------------------------
+                    ' Project price from valuation date to spot date
+                    '------------------------------------------------
                     dbl_UnitValSpotShockDown = Late_Del_Atm_Spot(dbl_Strike, dbl_Fwd, dbl_Spot, dbl_VolPct_XY, dbl_DF_ValSpot, dbl_DF_MatSpot, dbl_DF_MatSpot_Std, enu_Payoff) / dbl_DF_ValSpot
 
                 Case Else
