@@ -20,7 +20,7 @@ Private scf_Premium As SCF
 
 ' Curve dependencies
 Private dic_FXCurveNames As Dictionary
-Private fxs_Spots As Data_FXSpots, irc_DiscCurve As Data_IRCurve, irc_SpotDiscCurve As Data_IRCurve
+Private fxs_Spots As Data_FXSpots, irc_DiscCurve As Data_IRCurve, irc_SpotDiscCurve As Data_IRCurve, irc_Fgn As Data_IRCurve
 Private fxv_Vols_XY As Data_FXVols, fxv_Vols_XQ As Data_FXVols, fxv_Vols_YQ As Data_FXVols
 
 ' Dynamic variables
@@ -31,7 +31,7 @@ Private dbl_TimeToMat As Double, dbl_TimeEstPeriod As Double
 Private dic_GlobalStaticInfo As Dictionary, dic_CurveDependencies As Dictionary, map_Rules As MappingRules
 Private fld_Params As InstParams_FVN
 Private int_Sign As Integer, dbl_Strike As Double
-Private lng_MatDate As Long, lng_MatSpotDate As Long, lng_MatSpotDate_Std as Long
+Private lng_MatDate As Long, lng_MatSpotDate As Long, lng_MatSpotDate_Std As Long
 Private bln_IsQuanto As Boolean, enu_Payoff As EuropeanPayoff
 Private str_Pair_XY As String, str_Pair_XQ As String, str_Pair_YQ As String
 
@@ -121,6 +121,9 @@ Public Sub Initialize(fld_ParamsInput As InstParams_FVN, Optional dic_CurveSet A
     If dic_CurveDependencies.Exists(irc_SpotDiscCurve.CurveName) = False Then Call dic_CurveDependencies.Add(irc_SpotDiscCurve.CurveName, True)
 
     Set dic_FXCurveNames = map_Rules.Dict_FXCurveNames
+    Dim str_Curve_Fgn As String: str_Curve_Fgn = dic_FXCurveNames(fld_Params.CCY_Fgn)
+    Set irc_Fgn = GetObject_IRCurve(str_Curve_Fgn, True, False)
+
 End Sub
 
 '-------------------------------------------------------------------------------------------
@@ -848,6 +851,7 @@ Private Sub SetCurveState(str_curve As String, enu_State As CurveState_IRC, Opti
     ' ## Set up shift in the market data and underlying components
     If irc_DiscCurve.CurveName = str_curve Then Call irc_DiscCurve.SetCurveState(enu_State, int_PillarIndex)
     If irc_SpotDiscCurve.CurveName = str_curve Then Call irc_SpotDiscCurve.SetCurveState(enu_State, int_PillarIndex)
+    If irc_Fgn.CurveName = str_curve Then Call irc_Fgn.SetCurveState(enu_State, int_PillarIndex)
     Call scf_Premium.SetCurveState(str_curve, enu_State, int_PillarIndex)
     Call fxs_Spots.SetCurveState(str_curve, enu_State, int_PillarIndex)
     Call fxv_Vols_XY.SetCurveState(str_curve, enu_State, int_PillarIndex)
@@ -984,18 +988,12 @@ Private Function Late_Del_Atm_Spot(dbl_Strike As Double, dbl_Fwd As Double, dbl_
     '------------------------------------------------
     ' Obtain DF of DOM and FOR between T+2 and delivery
     '------------------------------------------------
-    ' Gather curves
-    Dim irc_Fgn As Data_IRCurve, irc_Dom As Data_IRCurve
-    Dim str_Curve_Fgn As String: str_Curve_Fgn = dic_FXCurveNames(fld_Params.CCY_Fgn)
-    Dim str_Curve_Dom As String: str_Curve_Dom = dic_FXCurveNames(fld_Params.CCY_Dom)
     ' Variable to store DF between T+2 and delivery
     Dim dbl_Fgn_LateDel_DF As Double, dbl_Dom_LateDel_DF As Double
 
-    Set irc_Fgn = GetObject_IRCurve(str_Curve_Fgn, True, False)
-    Set irc_Dom = GetObject_IRCurve(str_Curve_Dom, True, False)
-
+    ' irc_DiscCurve is the domestic FX curve, irc_Fgn is the foreign FX curve
     dbl_Fgn_LateDel_DF = irc_Fgn.Lookup_Rate(lng_MatSpotDate_Std, lng_MatSpotDate, "DF")
-    dbl_Dom_LateDel_DF = irc_Dom.Lookup_Rate(lng_MatSpotDate_Std, lng_MatSpotDate, "DF")
+    dbl_Dom_LateDel_DF = irc_DiscCurve.Lookup_Rate(lng_MatSpotDate_Std, lng_MatSpotDate, "DF")
 
     '--------------------------------
     ' Calculate difference between DF
