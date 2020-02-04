@@ -396,6 +396,20 @@ Public Function Calc_DV02(str_curve As String, Optional int_PillarIndex As Integ
     Calc_DV02 = dbl_Output
 End Function
 
+'-------------------------------------------------------------------------------------------------------------
+' NAME:    Calc_Delta
+'
+' PURPOSE: Calculate delta in booking screen
+'
+' NOTES: MUREX delta is as of spot date
+'
+' INPUT OPTIONS:
+'
+' MODIFIED:
+'    30JAN2020 - HM - Remove dbl_DF_Spot from dbl_UnitValSpotShockUp and dbl_UnitValSpotShockDown
+'                     to reconcile MUREX spot delta
+'
+'-------------------------------------------------------------------------------------------
 Public Function Calc_Delta() As Double
 
     ' Added by Dennis Foong on 18th January 2016
@@ -474,13 +488,13 @@ Public Function Calc_Delta() As Double
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", dbl_ShockSize)
             Call fxs_Spots.Scen_ApplyCurrent
             dbl_Spot = Spot()
-            dbl_UnitValSpotShockUp = WorksheetFunction.Max(fld_Params.OptDirection * (dbl_Spot - fld_Params.strike), 0) * dbl_DF_Spot
+            dbl_UnitValSpotShockUp = WorksheetFunction.Max(fld_Params.OptDirection * (dbl_Spot - fld_Params.strike), 0)
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
             Call fxs_Spots.Scen_ApplyCurrent
             dbl_Spot = Spot()
-            dbl_UnitValSpotShockDown = WorksheetFunction.Max(fld_Params.OptDirection * (dbl_Spot - fld_Params.strike), 0) * dbl_DF_Spot
+            dbl_UnitValSpotShockDown = WorksheetFunction.Max(fld_Params.OptDirection * (dbl_Spot - fld_Params.strike), 0)
 
         Case DetailedCat.SingleAmerican
 
@@ -492,7 +506,7 @@ Public Function Calc_Delta() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, fld_Params.strike)
             dbl_UnitValSpotShockUp = Calc_BSPrice_SingleAmericanBar(fld_Params.OptDirection, dbl_Spot, dbl_Fwd, fld_Params.strike, _
                 dbl_VolPct_XY, dbl_TimeToMat, dbl_SingleBarrier, (enu_Type_Barrier = BarType.UpperBar), _
-                fld_Params.IsKnockOut) * dbl_DF_Option * dbl_DF_Spot
+                fld_Params.IsKnockOut) * dbl_DF_Option
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -502,7 +516,7 @@ Public Function Calc_Delta() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, fld_Params.strike)
             dbl_UnitValSpotShockDown = Calc_BSPrice_SingleAmericanBar(fld_Params.OptDirection, dbl_Spot, dbl_Fwd, fld_Params.strike, _
                 dbl_VolPct_XY, dbl_TimeToMat, dbl_SingleBarrier, (enu_Type_Barrier = BarType.UpperBar), _
-                fld_Params.IsKnockOut) * dbl_DF_Option * dbl_DF_Spot
+                fld_Params.IsKnockOut) * dbl_DF_Option
 
         Case DetailedCat.SingleAmericanQ
 
@@ -514,7 +528,7 @@ Public Function Calc_Delta() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, fld_Params.strike)
             dbl_UnitValSpotShockUp = Calc_BSPrice_SingleAmericanBar(fld_Params.OptDirection, dbl_Spot, dbl_Fwd, fld_Params.strike, _
                 dbl_VolPct_XY, dbl_TimeToMat, dbl_SingleBarrier, (enu_Type_Barrier = BarType.UpperBar), _
-                fld_Params.IsKnockOut) * fld_Params.QuantoFactor * dbl_DF_Option * dbl_DF_Spot
+                fld_Params.IsKnockOut) * fld_Params.QuantoFactor * dbl_DF_Option
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -524,7 +538,7 @@ Public Function Calc_Delta() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, fld_Params.strike)
             dbl_UnitValSpotShockDown = Calc_BSPrice_SingleAmericanBar(fld_Params.OptDirection, dbl_Spot, dbl_Fwd, fld_Params.strike, _
                 dbl_VolPct_XY, dbl_TimeToMat, dbl_SingleBarrier, (enu_Type_Barrier = BarType.UpperBar), _
-                fld_Params.IsKnockOut) * fld_Params.QuantoFactor * dbl_DF_Option * dbl_DF_Spot
+                fld_Params.IsKnockOut) * fld_Params.QuantoFactor * dbl_DF_Option
 
         Case DetailedCat.DoubleAmerican
 
@@ -536,7 +550,7 @@ Public Function Calc_Delta() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, fld_Params.strike)
             dbl_UnitValSpotShockUp = Calc_BSPrice_DoubleAmericanBar(fld_Params.OptDirection, dbl_Spot, dbl_Fwd, fld_Params.strike, _
                 dbl_VolPct_XY, dbl_TimeToMat, fld_Params.LowerBar, fld_Params.UpperBar, fld_Params.IsKnockOut) _
-                 * fld_Params.QuantoFactor * dbl_DF_Option * dbl_DF_Spot
+                 * fld_Params.QuantoFactor * dbl_DF_Option
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -546,7 +560,7 @@ Public Function Calc_Delta() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, fld_Params.strike)
             dbl_UnitValSpotShockDown = Calc_BSPrice_DoubleAmericanBar(fld_Params.OptDirection, dbl_Spot, dbl_Fwd, fld_Params.strike, _
                 dbl_VolPct_XY, dbl_TimeToMat, fld_Params.LowerBar, fld_Params.UpperBar, fld_Params.IsKnockOut) _
-                 * fld_Params.QuantoFactor * dbl_DF_Option * dbl_DF_Spot
+                 * fld_Params.QuantoFactor * dbl_DF_Option
 
         Case DetailedCat.DoubleAmericanQ
 
@@ -558,7 +572,7 @@ Public Function Calc_Delta() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, fld_Params.strike)
             dbl_UnitValSpotShockUp = Calc_BSPrice_DoubleAmericanBar(fld_Params.OptDirection, dbl_Spot, dbl_Fwd, fld_Params.strike, _
                 dbl_VolPct_XY, dbl_TimeToMat, fld_Params.LowerBar, fld_Params.UpperBar, fld_Params.IsKnockOut) _
-                 * fld_Params.QuantoFactor * dbl_DF_Option * dbl_DF_Spot
+                 * fld_Params.QuantoFactor * dbl_DF_Option
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -568,7 +582,7 @@ Public Function Calc_Delta() As Double
             dbl_VolPct_XY = GetVol(VolPair.XY, fld_Params.strike)
             dbl_UnitValSpotShockDown = Calc_BSPrice_DoubleAmericanBar(fld_Params.OptDirection, dbl_Spot, dbl_Fwd, fld_Params.strike, _
                 dbl_VolPct_XY, dbl_TimeToMat, fld_Params.LowerBar, fld_Params.UpperBar, fld_Params.IsKnockOut) _
-                 * fld_Params.QuantoFactor * dbl_DF_Option * dbl_DF_Spot
+                 * fld_Params.QuantoFactor * dbl_DF_Option
 
         Case DetailedCat.Vanilla
 
@@ -578,7 +592,7 @@ Public Function Calc_Delta() As Double
             dbl_Spot = Spot()
             dbl_Fwd = Forward()
             dbl_UnitValSpotShockUp = Calc_BSPrice_Vanilla(fld_Params.OptDirection, dbl_Fwd, fld_Params.strike, _
-                dbl_TimeToMat, GetVol(VolPair.XY, dbl_SmileStrike_Knocked)) * dbl_DF_Option * dbl_DF_Spot
+                dbl_TimeToMat, GetVol(VolPair.XY, dbl_SmileStrike_Knocked)) * dbl_DF_Option
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -586,7 +600,7 @@ Public Function Calc_Delta() As Double
             dbl_Spot = Spot()
             dbl_Fwd = Forward()
             dbl_UnitValSpotShockDown = Calc_BSPrice_Vanilla(fld_Params.OptDirection, dbl_Fwd, fld_Params.strike, _
-                dbl_TimeToMat, GetVol(VolPair.XY, dbl_SmileStrike_Knocked)) * dbl_DF_Option * dbl_DF_Spot
+                dbl_TimeToMat, GetVol(VolPair.XY, dbl_SmileStrike_Knocked)) * dbl_DF_Option
 
         Case DetailedCat.Quanto
 
@@ -596,7 +610,7 @@ Public Function Calc_Delta() As Double
             dbl_Spot = Spot()
             dbl_Fwd = Forward()
             dbl_UnitValSpotShockUp = Calc_BSPrice_Vanilla(fld_Params.OptDirection, dbl_Fwd, fld_Params.strike, dbl_TimeToMat, _
-                GetVol(VolPair.XY, dbl_SmileStrike_Knocked)) * fld_Params.QuantoFactor * dbl_DF_Option * dbl_DF_Spot
+                GetVol(VolPair.XY, dbl_SmileStrike_Knocked)) * fld_Params.QuantoFactor * dbl_DF_Option
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -604,7 +618,7 @@ Public Function Calc_Delta() As Double
             dbl_Spot = Spot()
             dbl_Fwd = Forward()
             dbl_UnitValSpotShockDown = Calc_BSPrice_Vanilla(fld_Params.OptDirection, dbl_Fwd, fld_Params.strike, dbl_TimeToMat, _
-                GetVol(VolPair.XY, dbl_SmileStrike_Knocked)) * fld_Params.QuantoFactor * dbl_DF_Option * dbl_DF_Spot
+                GetVol(VolPair.XY, dbl_SmileStrike_Knocked)) * fld_Params.QuantoFactor * dbl_DF_Option
 
         '##Matt Edit
         Case DetailedCat.EuropeanBar
@@ -616,7 +630,7 @@ Public Function Calc_Delta() As Double
             If (int_Sign_BS = 1 And int_Sign_BS * dbl_UnitVal < 0) Or (int_Sign_BS = -1 And int_Sign_BS * dbl_UnitVal > 0) Then
                 dbl_UnitVal = 0
             End If
-            dbl_UnitValSpotShockUp = dbl_UnitVal * dbl_DF_Option * dbl_DF_Spot
+            dbl_UnitValSpotShockUp = dbl_UnitVal * dbl_DF_Option
 
             ' Shock down
             Call fxs_Spots.Scen_AddNativeShock(str_TargetCCy, "REL", -dbl_ShockSize)
@@ -625,7 +639,7 @@ Public Function Calc_Delta() As Double
             If (int_Sign_BS = 1 And int_Sign_BS * dbl_UnitVal < 0) Or (int_Sign_BS = -1 And int_Sign_BS * dbl_UnitVal > 0) Then
                 dbl_UnitVal = 0
             End If
-            dbl_UnitValSpotShockDown = dbl_UnitVal * dbl_DF_Option * dbl_DF_Spot
+            dbl_UnitValSpotShockDown = dbl_UnitVal * dbl_DF_Option
 
         '##Matt Edit end
         Case Else:
@@ -643,6 +657,7 @@ Public Function Calc_Delta() As Double
     Calc_Delta = dbl_Output
 
 End Function
+
 Public Function Calc_Gamma() As Double
 
     ' Added by Dennis Foong on 18th January 2016
@@ -652,11 +667,11 @@ Public Function Calc_Gamma() As Double
     ' Prepare values for valuing option
     Dim enu_Detailed As DetailedCat: enu_Detailed = DetailedCategory()
     '##Matt Edit
-'    If (fld_Params.WindowStart = fld_Params.WindowEnd And fld_Params.WindowEnd = fld_Params.MatDate) Then
-'        enu_Detailed = EuropeanBar
-'    Else
-'        enu_Detailed = DetailedCategory()
-'    End If
+    'If (fld_Params.WindowStart = fld_Params.WindowEnd And fld_Params.WindowEnd = fld_Params.MatDate) Then
+    '    enu_Detailed = EuropeanBar
+    'Else
+    '    enu_Detailed = DetailedCategory()
+    'End If
 
     '##Matt Edit end
     Dim dbl_Spot As Double: dbl_Spot = Me.Spot
