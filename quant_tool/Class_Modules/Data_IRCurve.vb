@@ -213,9 +213,9 @@ Public Sub Scen_ApplyBase()
 
     'Handle error caused by blank worksheet
 
-    If Me.CurveName = "NID_ISL" Then
-        Debug.Print "HAHA"
-    End If
+    'If Me.CurveName = "NID_ISL" Then
+    '    Debug.Print "HAHA"
+    'End If
     If Me.CurveName = "" Then Exit Sub
     If rng_InstTypes(1, 1).Offset(0, -2).Value = "" Then Exit Sub
 
