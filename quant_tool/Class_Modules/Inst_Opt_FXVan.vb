@@ -136,7 +136,7 @@ End Sub
 ' INPUT OPTIONS:
 '
 ' MODIFIED:
-'    30JAN2019 - KW - Support Late Delivery FX Vanilla Option
+'    30JAN2020 - KW - Support Late Settlement FX Vanilla Option
 '                     Late Cash, Late Delivery, Late Delivery ATM Spot
 '
 '-------------------------------------------------------------------------------------------
