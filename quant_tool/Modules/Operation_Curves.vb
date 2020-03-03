@@ -1,3 +1,4 @@
+Attribute VB_Name = "Operation_Curves"
 Option Explicit
 
 ' ## EQUITY SPOTS
@@ -80,7 +81,7 @@ Public Sub UpdateCapVolPillarDates(dic_Curves_CVL As Dictionary)
        Else
           Call cvl_Active.Bootstrap_ParVols(False)
        End If
-
+     
     Next var_Active
 End Sub
 
@@ -88,12 +89,12 @@ End Sub
 ' ## SWAPTION VOL CURVES
 Public Sub GenerateSelectedSwptVolCurves(Optional dic_Curves_SVL As Dictionary = Nothing, Optional bln_ReturnToOrigSheet As Boolean = True)
     If dic_Curves_SVL Is Nothing Then Set dic_Curves_SVL = GetAllCurves_SVL(False, True)
-    Call OperateOnCurves(dic_Curves_SVL, CurveType.SVL, "cyRefreshSwptVolCurve", bln_ReturnToOrigSheet, True, 2)
+    Call OperateOnCurves(dic_Curves_SVL, CurveType.svl, "cyRefreshSwptVolCurve", bln_ReturnToOrigSheet, True, 2)
 End Sub
 
 Public Sub GenerateAllSwptVolCurves(Optional dic_Curves_SVL As Dictionary = Nothing, Optional bln_ReturnToOrigSheet As Boolean = False)
     If dic_Curves_SVL Is Nothing Then Set dic_Curves_SVL = GetAllCurves_SVL(False, True)
-    Call OperateOnCurves(dic_Curves_SVL, CurveType.SVL, "cyRefreshSwptVolCurve", bln_ReturnToOrigSheet, False)
+    Call OperateOnCurves(dic_Curves_SVL, CurveType.svl, "cyRefreshSwptVolCurve", bln_ReturnToOrigSheet, False)
 End Sub
 
 
@@ -147,6 +148,11 @@ Public Sub FillAllDependencies(dic_CurveSet As Dictionary)
     Call FillDependency_IRC(dic_CurveSet(CurveType.FXV), dic_CurveSet(CurveType.IRC))
     Call FillDependency_AllCurves(dic_CurveSet(CurveType.cvl), dic_CurveSet)
 End Sub
+Public Sub FillAllDependencies_HW(dic_CurveSet As Dictionary)
+    ' ## Set instance relationships between curves
+    Dim fxs_Spots As Data_FXSpots: Set fxs_Spots = dic_CurveSet(CurveType.FXSPT)
+    Call fxs_Spots.FillDependency_IRC(dic_CurveSet(CurveType.IRC))
+End Sub
 
 
 ' ## WORKER OPERATIONS
@@ -156,7 +162,7 @@ Private Sub OperateOnCurves(dic_CurveSet As Dictionary, enu_Type As CurveType, s
     Dim fld_AppState_Orig As ApplicationState: fld_AppState_Orig = Gather_ApplicationState(ApplicationStateType.Current)
     Dim fld_AppState_Opt As ApplicationState: fld_AppState_Opt = Gather_ApplicationState(ApplicationStateType.Optimized)
     Call Action_SetAppState(fld_AppState_Opt)
-
+    
     Dim wks_Orig As Worksheet: If bln_ReturnToOrigSheet = True Then Set wks_Orig = ActiveSheet
     Dim rng_Active As Range: Set rng_Active = GetRange_CurveSetup(enu_Type)
     Dim str_ActiveCode As String
@@ -167,16 +173,16 @@ Private Sub OperateOnCurves(dic_CurveSet As Dictionary, enu_Type As CurveType, s
         If bln_SelectedOnly = True Then
             If rng_Active(1, int_SelectionCol).Value <> "YES" Then bln_InScope = False
         End If
-
+        
         ' Generate
         If bln_InScope = True Then
             str_ActiveCode = rng_Active(1, 1).Value
             Call Application.Run(str_SubName, str_ActiveCode, dic_CurveSet)
         End If
-
+        
         Set rng_Active = rng_Active.Offset(1, 0)
     Wend
-
+    
     If bln_ReturnToOrigSheet = True Then Call GotoSheet(wks_Orig.Name)
     Call Action_SetAppState(fld_AppState_Orig)
 End Sub
@@ -196,6 +202,6 @@ Public Sub OperateOnCurves_Method(dic_Curves As Dictionary, str_Method As String
             Case 2: Debug.Assert False
         End Select
     Next var_Active
-
+    
     Call Action_SetAppState(fld_AppState_Orig)
 End Sub
