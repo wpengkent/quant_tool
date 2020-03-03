@@ -1,3 +1,12 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+END
+Attribute VB_Name = "Data_HullWhiteVol"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = False
+Attribute VB_Exposed = False
     'Outstanding:
 '1. Small difference in USD
 '2. Handle of specific scenario: Handle holiday at start and end date !!!! Usage of Gen Start
@@ -48,8 +57,8 @@ Public Sub Initialize(dbl_MR As Double, str_CCY As String, str_Gen_FixLeg As Str
 
 Set dic_GlobalStaticInfo = GetStaticInfo()
 
-Set dic_CurveSet = GetAllCurves(True, False, dic_GlobalStaticInfo)
-Call FillAllDependencies(dic_CurveSet)
+Set dic_CurveSet = GetAllCurves_HW(True, False, dic_GlobalStaticInfo)
+Call FillAllDependencies_HW(dic_CurveSet)
 
 Dim int_num As Integer
 int_num = col_ExerciseDate.count
@@ -107,18 +116,18 @@ For int_i = 1 To int_num
         Call Swaption_active.Initialize(fld_Output, dic_CurveSet, dic_GlobalStaticInfo)
 
         dbl_ATM_strike = Swaption_active.SwapRate
-
+        
         If bln_AtmStrikeCal = False Then
-
+        
             fld_Output = GetInstParams(str_CCY, str_Gen_FixLeg, str_Gen_FltLeg, col_ExerciseDate(int_i), col_SwapStart(int_i), lng_SwapMat, dbl_ATM_strike, str_Svl, True, False, True)
             Call Swaption_active.Initialize(fld_Output, dic_CurveSet, dic_GlobalStaticInfo)
-
+        
             dbl_ATM_vol = Swaption_active.Volatility / 100
-
+        
             dbl_adj = StrikeAdj(int_DealAppStrikeDelta, dbl_ATM_vol, col_ExerciseDate(int_i), lng_ValDate)
             dbl_Lower_Strike = dbl_ATM_strike / dbl_adj
             dbl_Upper_Strike = dbl_ATM_strike * dbl_adj
-
+        
             If col_Strike(int_i) <= dbl_Lower_Strike Then
                 dbl_Strike = dbl_Lower_Strike
             ElseIf col_Strike(int_i) >= dbl_Upper_Strike Then
@@ -134,32 +143,32 @@ For int_i = 1 To int_num
     End If
 
     dbl_PrevStrike = dbl_Strike
-
+    
     fld_Output = GetInstParams(str_CCY, str_Gen_FixLeg, str_Gen_FltLeg, col_ExerciseDate(int_i), col_SwapStart(int_i), lng_SwapMat, dbl_Strike, str_Svl)
     Call Swaption_active.Initialize(fld_Output, dic_CurveSet, dic_GlobalStaticInfo)
 
     Set Col_CalibrateOutput = New Collection
     Set Col_CalibrateOutput = Swaption_active.HW_CalibrateVol(dbl_MR, dbl_r, dbl_Vol)
-
+    
     If Col_CalibrateOutput(2) = 9999 Then
         Call dic_OriVolOutput.Add(col_ExerciseDate(int_i), dbl_CalFailVal)
     Else
         Call dic_OriVolOutput.Add(col_ExerciseDate(int_i), Col_CalibrateOutput(2))
     End If
 
-
+    
     If dic_OriVolOutput(col_ExerciseDate(int_i)) = dbl_CalFailVal Then
         Call dic_FinalVolOutput.Add(col_ExerciseDate(int_i), dbl_CalFailVal)
-
+    
     ElseIf int_i = 1 Then
-
+    
     'If int_i = 1 Then
         Call dic_FinalVolOutput.Add(col_ExerciseDate(1), dic_OriVolOutput(dic_OriVolOutput.Keys(0)))
     Else
         dbl_T1 = (col_ExerciseDate(int_i - 1) - lng_ValDate) / 365
         dbl_T2 = (col_ExerciseDate(int_i) - lng_ValDate) / 365
         dbl_FinalVol = BootstrapHWVol(dbl_MR, dbl_T1, dbl_T2, dic_OriVolOutput(dic_OriVolOutput.Keys(int_i - 2)), dic_OriVolOutput(dic_OriVolOutput.Keys(int_i - 1)), dbl_PrevMaxSigma, bln_HandleClbFailureMXWay, dbl_SmallValue)
-
+        
         bln_check = BootstrapHWVolFail(dbl_MR, dbl_T1, dbl_T2, dic_OriVolOutput(dic_OriVolOutput.Keys(int_i - 2)), dic_OriVolOutput(dic_OriVolOutput.Keys(int_i - 1)))
 
         If bln_check = True Then
@@ -168,16 +177,16 @@ For int_i = 1 To int_num
             dbl_NewV2OriSigma = BootstrapHWOriSigma(dbl_MR, dbl_T1, dbl_T2, dic_OriVolOutput(dic_OriVolOutput.Keys(int_i - 2)), dbl_FinalVol)
             Call dic_OriVolOutput.Add(lng_DateKey, dbl_NewV2OriSigma)
         End If
-
+        
         Call dic_FinalVolOutput.Add(col_ExerciseDate(int_i), dbl_FinalVol)
 
     End If
-
+    
     If dbl_PrevMaxSigma < dic_FinalVolOutput(col_ExerciseDate(int_i)) Then
         dbl_PrevMaxSigma = dic_FinalVolOutput(col_ExerciseDate(int_i))
     End If
 
-
+    
 Next int_i
 
 'Hardcode Sigma
@@ -247,11 +256,11 @@ Set dic_StaticInfoInput = GetStaticInfo()
     Dim igs_Generators As IRGeneratorSet
     Set igs_Generators = New IRGeneratorSet
     Set igs_Generators = dic_StaticInfoInput(StaticInfoType.IRGeneratorSet)
-
+    
     Dim cfg_Settings As ConfigSheet
     Set cfg_Settings = New ConfigSheet
     Set cfg_Settings = dic_StaticInfoInput(StaticInfoType.ConfigSheet)
-
+    
     Dim fld_LegA As IRLegParams: fld_LegA = igs_Generators.Lookup_Generator(str_Gen_FixLeg)
     Dim fld_LegB As IRLegParams: fld_LegB = igs_Generators.Lookup_Generator(str_Gen_FltLeg)
     fld_LegA.ForceToMV = True
@@ -261,7 +270,7 @@ Set dic_StaticInfoInput = GetStaticInfo()
     fld_LegB.IsUniformPeriods = False
 
     fld_Output.ValueDate = cfg_Settings.CurrentValDate
-
+    
     If FreqValue(fld_LegA.PmtFreq) < FreqValue(fld_LegB.PmtFreq) And bln_FreqChange = True Then
         fld_LegB.PmtFreq = fld_LegA.PmtFreq
         fld_LegB.index = fld_LegA.PmtFreq
@@ -272,13 +281,13 @@ Set dic_StaticInfoInput = GetStaticInfo()
     fld_LegB.Swapstart = lng_SwapStart
     fld_LegA.ValueDate = lng_SwapStart
     fld_LegB.ValueDate = lng_SwapStart
-
+  
     'fld_LegA.Term = "3M" 'not used
     'fld_LegB.Term = "3M" 'not used
     fld_LegA.IsFwdGeneration = False
     fld_LegB.IsFwdGeneration = False
-
-
+    
+    
     'Instead of using swap maturity as generation reference point, may need to consider using generation start if there is issue
     fld_LegA.GenerationRefPoint = lng_SwapMat
     fld_LegB.GenerationRefPoint = lng_SwapMat
@@ -299,7 +308,7 @@ Set dic_StaticInfoInput = GetStaticInfo()
 
     fld_LegA.FloatEst = bln_EstFlt
     fld_LegB.FloatEst = bln_EstFlt
-
+    
     If bln_USDStubInterp = True And str_CCY = str_USD Then
         fld_LegB.StubInterpolate = True
     End If
@@ -348,3 +357,5 @@ Private Function StrikeAdj(int_Delta As Integer, dbl_Vol As Double, lng_ExeDate 
 StrikeAdj = Exp(int_Delta * dbl_Vol * Sqr((lng_ExeDate - lng_ValuationDate) / 365))
 
 End Function
+
+

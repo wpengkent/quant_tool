@@ -1,3 +1,12 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+END
+Attribute VB_Name = "PDE_Matrix"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = False
+Attribute VB_Exposed = False
 Option Explicit
 
 Public Enum PDE_TimeStep
@@ -17,7 +26,7 @@ End Enum
 Private lng_MatDate As Long 'Valuation Date
 Private lng_ValDate As Long 'Valuation Date
 Private lng_LastCallDate As Long 'Last Call Date
-Private arr_Sigma() As Double 'Vol Series
+Private arr_sigma() As Double 'Vol Series
 Private arr_ImpDate() As Double
 Private arr_CallDate() As Double
 Private irl_LegA As IRLeg
@@ -35,58 +44,61 @@ Private arr_TimeLabel() As Integer
 Private arr_TimeStep_ImpDate() As Double
 ''''''''''''''''END - KL - For Testing'''''''''''''''''
 
-Public Property Get SpotStep() As Double()
-    SpotStep = arr_SpotStep
+Public Property Get spotstep() As Double()
+    spotstep = arr_SpotStep
 End Property
-Public Property Get TimeStep() As Double()
-    TimeStep = arr_TimeStep
+Public Property Get timestep() As Double()
+    timestep = arr_TimeStep
 End Property
-Public Property Get TimeLabel() As Integer()
-    TimeLabel = arr_TimeLabel
+Public Property Get timelabel() As Integer()
+    timelabel = arr_TimeLabel
 End Property
 Public Property Get TimeStep_ImpDate() As Double()
     TimeStep_ImpDate = arr_TimeStep_ImpDate
 End Property
+Public Property Get HW_Sigma() As Double()
+    HW_Sigma = arr_sigma()
+End Property
 Public Sub Initialize(ValDate As Long, MatDate As Long, CalibratedVol As Dictionary, LegA As IRLeg, LegB As IRLeg, _
-                      SpotStep As Integer, TimeStep As Integer, MeanRev As Double, ProductType As PDE_Product)
+                      spotstep As Integer, timestep As Integer, MeanRev As Double, ProductType As PDE_Product)
 
 Dim int_i As Integer
 Dim dbl_T1 As Double
 Dim dic_ImpDate As New Dictionary
 
-int_SpotStep = SpotStep
-int_TimeStep = TimeStep
+int_SpotStep = spotstep
+int_TimeStep = timestep
 dbl_MeanRev = MeanRev
 
 lng_ValDate = ValDate 'Valuation Date
 lng_LastCallDate = CalibratedVol.Keys(CalibratedVol.count - 1) 'Last Call Date
 lng_MatDate = MatDate
-
+ 
 'Vol Series
-ReDim arr_Sigma(1 To CalibratedVol.count + 2, 1 To 2)
+ReDim arr_sigma(1 To CalibratedVol.count + 2, 1 To 2)
 ReDim arr_CallDate(1 To CalibratedVol.count)
 
-arr_Sigma(1, 1) = CalibratedVol.Items(0)
-arr_Sigma(1, 2) = calc_yearfrac(lng_ValDate, lng_ValDate, "ACT/365")
+arr_sigma(1, 1) = CalibratedVol.Items(0)
+arr_sigma(1, 2) = calc_yearfrac(lng_ValDate, lng_ValDate, "ACT/365")
 
 For int_i = 0 To CalibratedVol.count - 1
 
     'Sigma Series
-    arr_Sigma(int_i + 2, 1) = CalibratedVol.Items(int_i)
-    arr_Sigma(int_i + 2, 2) = calc_yearfrac(lng_ValDate, CalibratedVol.Keys(int_i), "ACT/365")
-
+    arr_sigma(int_i + 2, 1) = CalibratedVol.Items(int_i)
+    arr_sigma(int_i + 2, 2) = calc_yearfrac(lng_ValDate, CalibratedVol.Keys(int_i), "ACT/365")
+    
     'Call Date
     arr_CallDate(int_i + 1) = calc_yearfrac(lng_ValDate, CalibratedVol.Keys(int_i), "ACT/365")
-
+    
 Next int_i
 
 'To include Start Date and End Date(Beyond MatDate) for sigma
-arr_Sigma(CalibratedVol.count + 2, 1) = CalibratedVol.Items(CalibratedVol.count - 1)
-arr_Sigma(CalibratedVol.count + 2, 2) = calc_yearfrac(lng_ValDate, lng_MatDate + 365, "ACT/365")
+arr_sigma(CalibratedVol.count + 2, 1) = CalibratedVol.Items(CalibratedVol.count - 1)
+arr_sigma(CalibratedVol.count + 2, 2) = calc_yearfrac(lng_ValDate, lng_MatDate + 365, "ACT/365")
 
 'Important Date
-For int_i = 1 To LegA.PeriodStart.count
-    dbl_T1 = calc_yearfrac(lng_ValDate, LegA.PeriodStart(int_i), "ACT/365")
+For int_i = 1 To LegA.periodstart.count
+    dbl_T1 = calc_yearfrac(lng_ValDate, LegA.periodstart(int_i), "ACT/365")
     If dbl_T1 > 0 Then
         dic_ImpDate.Add dbl_T1, vbNull
     End If
@@ -99,8 +111,8 @@ For int_i = 1 To LegA.PeriodEnd.count
     End If
 Next int_i
 
-For int_i = 1 To LegB.PeriodStart.count
-    dbl_T1 = calc_yearfrac(lng_ValDate, LegB.PeriodStart(int_i), "ACT/365")
+For int_i = 1 To LegB.periodstart.count
+    dbl_T1 = calc_yearfrac(lng_ValDate, LegB.periodstart(int_i), "ACT/365")
     If dic_ImpDate.Exists(dbl_T1) = False And dbl_T1 > 0 Then
         dic_ImpDate.Add dbl_T1, vbNull
     End If
@@ -146,7 +158,7 @@ Call CreateTimeStep_ImpDate
 
 End Sub
 Private Sub OverwriteTimeStep_4()
-
+ 
 ReDim arr_TimeStep(1 To 44) As Double
 ReDim arr_TimeLabel(1 To 44) As Integer
 
@@ -243,7 +255,7 @@ arr_TimeLabel(1) = 3
 End Sub
 
 Private Sub OverwriteTimeStep_30()
-
+ 
 ReDim arr_TimeStep(1 To 68) As Double
 ReDim arr_TimeLabel(1 To 68) As Integer
 
@@ -405,8 +417,8 @@ Dim dbl_T1_loop As Double
 Dim dbl_T2_Loop As Double
 Dim dbl_Sigma As Double
 
-For int_cnt = 1 To UBound(arr_Sigma)
-    If arr_Sigma(int_cnt, 2) > dbl_T1 Then
+For int_cnt = 1 To UBound(arr_sigma)
+    If arr_sigma(int_cnt, 2) > dbl_T1 Then
         int_max = int_cnt - 1
         Exit For
     End If
@@ -414,22 +426,22 @@ Next int_cnt
 
 For int_cnt = 1 To int_max - 1
 
-    dbl_T1_loop = arr_Sigma(int_cnt, 2)
-    dbl_T2_Loop = arr_Sigma(int_cnt + 1, 2)
-    dbl_Sigma = arr_Sigma(int_cnt + 1, 1)
-
+    dbl_T1_loop = arr_sigma(int_cnt, 2)
+    dbl_T2_Loop = arr_sigma(int_cnt + 1, 2)
+    dbl_Sigma = arr_sigma(int_cnt + 1, 1)
+    
     dbl_A = dbl_T2_Loop - dbl_T1_loop
     dbl_B = 1 / (2 * dbl_MeanRev) * (Exp(2 * dbl_MeanRev * dbl_T2_Loop) - Exp(2 * dbl_MeanRev * dbl_T1_loop))
     dbl_C = 2 / (dbl_MeanRev) * (Exp(dbl_MeanRev * dbl_T2_Loop) - Exp(dbl_MeanRev * dbl_T1_loop))
-
+    
     dbl_output_V_T1 = dbl_output_V_T1 + dbl_Sigma * dbl_Sigma / dbl_MeanRev / dbl_MeanRev * (dbl_A + Exp(-2 * dbl_MeanRev * dbl_T1) * dbl_B - Exp(-dbl_MeanRev * dbl_T1) * dbl_C)
     dbl_output_V_T2 = dbl_output_V_T2 + dbl_Sigma * dbl_Sigma / dbl_MeanRev / dbl_MeanRev * (dbl_A + Exp(-2 * dbl_MeanRev * dbl_T2) * dbl_B - Exp(-dbl_MeanRev * dbl_T2) * dbl_C)
-
+    
 Next int_cnt
 
-dbl_T1_loop = arr_Sigma(int_max, 2)
+dbl_T1_loop = arr_sigma(int_max, 2)
 dbl_T2_Loop = dbl_T1
-dbl_Sigma = arr_Sigma(int_max + 1, 1)
+dbl_Sigma = arr_sigma(int_max + 1, 1)
 
 dbl_A = dbl_T2_Loop - dbl_T1_loop
 dbl_B = 1 / (2 * dbl_MeanRev) * (Exp(2 * dbl_MeanRev * dbl_T2_Loop) - Exp(2 * dbl_MeanRev * dbl_T1_loop))
@@ -458,24 +470,24 @@ Dim arr_output() As Double
 Dim arr_MaxVol() As Double
 
 'Construct the array of variance
-ReDim arr_MaxVol(1 To UBound(arr_Sigma) - 1)
+ReDim arr_MaxVol(1 To UBound(arr_sigma) - 1)
 
-For int_cnt = 1 To UBound(arr_Sigma) - 1
-
-    dbl_T1 = arr_Sigma(int_cnt, 2)
-    dbl_T2 = arr_Sigma(int_cnt + 1, 2)
-
-    If int_cnt = UBound(arr_Sigma) - 1 Then
+For int_cnt = 1 To UBound(arr_sigma) - 1
+    
+    dbl_T1 = arr_sigma(int_cnt, 2)
+    dbl_T2 = arr_sigma(int_cnt + 1, 2)
+    
+    If int_cnt = UBound(arr_sigma) - 1 Then
         dbl_T2 = (lng_MatDate - lng_ValDate) / 365
     End If
-
-    If int_cnt = UBound(arr_Sigma) - 1 And UBound(arr_Sigma) < 1 Then
+    
+    If int_cnt = UBound(arr_sigma) - 1 And UBound(arr_sigma) < 1 Then
         dbl_T2 = 1
     End If
-
-    dbl_SM = arr_Sigma(int_cnt + 1, 1) ^ 2 / 2 / dbl_MeanRev
+    
+    dbl_SM = arr_sigma(int_cnt + 1, 1) ^ 2 / 2 / dbl_MeanRev
     dbl_V1 = (dbl_V1 - dbl_SM) * Exp(-2 * (dbl_T2 - dbl_T1) * dbl_MeanRev) + dbl_SM
-
+    
     arr_MaxVol(int_cnt) = dbl_V1
 
 Next int_cnt
@@ -550,20 +562,20 @@ For int_i = 1 To UBound(arr_ImpDate)
         dbl_T1 = arr_ImpDate(int_i - 1)
         dbl_T2 = arr_ImpDate(int_i)
     End If
-
+    
         dbl_IteStep = (dbl_T2 - dbl_T1) / (int_N_iteration + 1)
         If dbl_IteStep < 0.00001 Then GoTo SkipIteration
         int_k = 0
 
         Do
             If int_N_iteration = 0 Then: Exit Do
-
+            
             int_j = int_j + 1
             int_k = int_k + 1
             dbl_IteTemp = dbl_T1 + dbl_IteStep * int_k
             arr_OutputDate(UBound(arr_ImpDate) + int_j) = dbl_IteTemp
             arr_OutputLabel(UBound(arr_ImpDate) + int_j) = PDE_TimeStep.CN
-
+            
             If (dbl_T2 - (dbl_IteTemp + dbl_IteStep)) < 0.00001 Then: Exit Do
         Loop
 SkipIteration:
@@ -614,19 +626,19 @@ Call BubbleSort(arr_OutputDate, arr_OutputLabel)
 
 For int_i = 2 To UBound(arr_OutputDate)
     If arr_OutputLabel(int_i) = PDE_TimeStep.major Then
-
+        
         dbl_IteTemp = arr_OutputDate(int_i) - arr_OutputDate(int_i - 1)
         dbl_IteTemp = dbl_IteTemp / 3
-
+        
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 2)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 2)
-
+        
         arr_OutputDate(UBound(arr_OutputDate)) = arr_OutputDate(int_i) - dbl_IteTemp
         arr_OutputDate(UBound(arr_OutputDate) - 1) = arr_OutputDate(int_i) - dbl_IteTemp * 2
-
+        
         arr_OutputLabel(UBound(arr_OutputDate)) = PDE_TimeStep.Implicit
         arr_OutputLabel(UBound(arr_OutputDate) - 1) = PDE_TimeStep.Implicit
-
+    
     End If
 
 Next int_i
@@ -685,7 +697,7 @@ dbl_IteStep = Int(365 / int_TimeStep) / 365
 For int_i = 1 To UBound(arr_ImpDate)
 
     int_j = 0
-
+    
     If int_i = 1 Then
         dbl_T1 = 0
         dbl_T2 = arr_ImpDate(int_i)
@@ -697,12 +709,12 @@ For int_i = 1 To UBound(arr_ImpDate)
     Do
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+        
         int_j = int_j + 1
         dbl_IteTemp = dbl_T1 + dbl_IteStep * int_j
         arr_OutputDate(UBound(arr_OutputDate)) = dbl_IteTemp
         arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
-
+        
         If (dbl_IteTemp + dbl_IteStep) > dbl_T2 Then: Exit Do
 
     Loop
@@ -725,49 +737,49 @@ For int_i = 2 To dbl_Ubound
     int_j = 0
     dbl_T1 = arr_OutputDate(int_i - 1)
     dbl_T2 = arr_OutputDate(int_i)
-
+    
     If arr_OutputDate(int_i) <= 30 / 365 And (dbl_T2 - dbl_T1) >= dbl_IteStep Then
-
+    
         Do
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+        
         int_j = int_j + 1
         dbl_IteTemp = dbl_T1 + dbl_IteStep * int_j
         arr_OutputDate(UBound(arr_OutputDate)) = dbl_IteTemp
         arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
-
+        
         If (dbl_IteTemp + dbl_IteStep) > dbl_T2 Then: Exit Do
         Loop
     ElseIf arr_OutputDate(int_i) = 30 / 365 Then
-
+    
         Exit For
     ElseIf arr_OutputDate(int_i) > 30 / 365 And arr_OutputDate(int_i + 1) < 30 / 365 Then
-
+                
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+            
             arr_OutputDate(UBound(arr_OutputDate)) = 30 / 365
             arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
             dbl_T2 = 30 / 365
-
+            
         Do
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+        
             int_j = int_j + 1
             dbl_IteTemp = dbl_T1 + dbl_IteStep * int_j
             arr_OutputDate(UBound(arr_OutputDate)) = dbl_IteTemp
             arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
-
+            
         If (dbl_IteTemp + dbl_IteStep) > dbl_T2 Then: Exit Do
         Loop
-
+        
         Exit For
     Else
-
+    
     End If
-
+    
 Next int_i
 'Sorting the TimeStep - BubbleSort
 Call BubbleSort(arr_OutputDate, arr_OutputLabel)
@@ -816,19 +828,19 @@ Call BubbleSort(arr_OutputDate, arr_OutputLabel)
 
 For int_i = 1 To UBound(arr_OutputDate)
     If arr_OutputLabel(int_i) = PDE_TimeStep.major And arr_OutputDate(int_i) <> arr_ImpDate(1) Then
-
+        
         dbl_IteTemp = arr_OutputDate(int_i) - arr_OutputDate(int_i - 1)
         dbl_IteTemp = dbl_IteTemp / 3
-
+        
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 2)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 2)
-
+        
         arr_OutputDate(UBound(arr_OutputDate)) = arr_OutputDate(int_i) - dbl_IteTemp
         arr_OutputDate(UBound(arr_OutputDate) - 1) = arr_OutputDate(int_i) - dbl_IteTemp * 2
-
+        
         arr_OutputLabel(UBound(arr_OutputDate)) = PDE_TimeStep.Implicit
         arr_OutputLabel(UBound(arr_OutputDate) - 1) = PDE_TimeStep.Implicit
-
+    
     End If
 
 Next int_i
@@ -888,18 +900,18 @@ dbl_T2 = arr_ImpDate(UBound(arr_ImpDate))
 Do
     ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
     ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+    
     For int_i = 1 To UBound(arr_ImpDate)
         If Abs((dbl_IteTemp + dbl_IteStep) - arr_ImpDate(int_i)) < 0.00001 Then
             int_j = int_j + 1
         End If
     Next int_i
-
+    
     int_j = int_j + 1
     dbl_IteTemp = dbl_T1 + dbl_IteStep * int_j
     arr_OutputDate(UBound(arr_OutputDate)) = dbl_IteTemp
     arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
-
+    
     If (dbl_IteTemp + dbl_IteStep) >= dbl_T2 Or Abs((dbl_IteTemp + dbl_IteStep - dbl_T2)) < 0.00001 Then: Exit Do
 
 Loop
@@ -916,11 +928,11 @@ For int_i = 1 To UBound(arr_OutputDate)
     If arr_OutputDate(int_i) = 30 / 365 Then
         Exit For
     End If
-
+    
     If int_i = UBound(arr_OutputDate) Then
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+            
         arr_OutputDate(UBound(arr_OutputDate)) = 30 / 365
         arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
     End If
@@ -936,7 +948,7 @@ Dim dbl_Ubound As Integer
 dbl_Ubound = UBound(arr_OutputDate) - 1
 
 For int_i = 1 To dbl_Ubound
-
+    
     int_j = 0
     If int_i = 1 Then
         dbl_T1 = 0
@@ -945,24 +957,24 @@ For int_i = 1 To dbl_Ubound
         dbl_T1 = arr_OutputDate(int_i - 1)
         dbl_T2 = arr_OutputDate(int_i)
     End If
-
-
+    
+    
     If arr_OutputDate(int_i) <= 30 / 365 And Abs(dbl_T2 - dbl_T1 - dbl_IteStep) > 0.00001 Then
-
+    
         Do
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+        
         int_j = int_j + 1
         dbl_IteTemp = dbl_T1 + dbl_IteStep * int_j
         arr_OutputDate(UBound(arr_OutputDate)) = dbl_IteTemp
         arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
-
+        
         If (dbl_IteTemp + dbl_IteStep) >= dbl_T2 Or Abs((dbl_IteTemp + dbl_IteStep - dbl_T2)) < 0.00001 Then: Exit Do
         Loop
-
+    
     End If
-
+    
 Next int_i
 'Sorting the TimeStep - BubbleSort
 Call BubbleSort(arr_OutputDate, arr_OutputLabel)
@@ -1013,38 +1025,38 @@ For int_i = 1 To UBound(arr_OutputDate)
 
     If arr_OutputLabel(int_i) = PDE_TimeStep.major Then
 
-
+        
         dbl_IteTemp = arr_OutputDate(int_i) - arr_OutputDate(int_i - 1)
-
+        
         If Round(dbl_IteTemp, 6) / 3 <= Round(1 / 365, 6) Then
-
+        
             dbl_IteTemp = (arr_OutputDate(int_i - 1) - arr_OutputDate(int_i - 2)) / 3
-
+        
             ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 2)
             ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 2)
-
+            
             arr_OutputDate(UBound(arr_OutputDate)) = arr_OutputDate(int_i - 1) - dbl_IteTemp
             arr_OutputDate(UBound(arr_OutputDate) - 1) = arr_OutputDate(int_i - 1) - dbl_IteTemp * 2
-
+            
             arr_OutputLabel(int_i - 1) = PDE_TimeStep.Implicit
             arr_OutputLabel(UBound(arr_OutputDate)) = PDE_TimeStep.Implicit
             arr_OutputLabel(UBound(arr_OutputDate) - 1) = PDE_TimeStep.CN
-
+        
         Else
             dbl_IteTemp = dbl_IteTemp / 3
-
+        
             ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 2)
             ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 2)
-
+            
             arr_OutputDate(UBound(arr_OutputDate)) = arr_OutputDate(int_i) - dbl_IteTemp
             arr_OutputDate(UBound(arr_OutputDate) - 1) = arr_OutputDate(int_i) - dbl_IteTemp * 2
-
+            
             arr_OutputLabel(UBound(arr_OutputDate)) = PDE_TimeStep.Implicit
             arr_OutputLabel(UBound(arr_OutputDate) - 1) = PDE_TimeStep.Implicit
         End If
+        
 
-
-
+    
     End If
 
 Next int_i
@@ -1105,18 +1117,18 @@ dbl_T2 = arr_ImpDate(UBound(arr_ImpDate))
 Do
     ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
     ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+    
     For int_i = 1 To UBound(arr_ImpDate)
         If Abs((dbl_IteTemp + dbl_IteStep) - arr_ImpDate(int_i)) < 0.00001 Then
             int_j = int_j + 1
         End If
     Next int_i
-
+    
     int_j = int_j + 1
     dbl_IteTemp = dbl_T1 + dbl_IteStep * int_j
     arr_OutputDate(UBound(arr_OutputDate)) = dbl_IteTemp
     arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
-
+    
     If (dbl_IteTemp + dbl_IteStep) >= dbl_T2 Or Abs((dbl_IteTemp + dbl_IteStep - dbl_T2)) < 0.00001 Then: Exit Do
 
 Loop
@@ -1133,11 +1145,11 @@ For int_i = 1 To UBound(arr_OutputDate)
     If arr_OutputDate(int_i) = 30 / 365 Then
         Exit For
     End If
-
+    
     If int_i = UBound(arr_OutputDate) Then
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+            
         arr_OutputDate(UBound(arr_OutputDate)) = 30 / 365
         arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
     End If
@@ -1153,7 +1165,7 @@ Dim dbl_Ubound As Integer
 dbl_Ubound = UBound(arr_OutputDate) - 1
 
 For int_i = 1 To dbl_Ubound
-
+    
     int_j = 0
     If int_i = 1 Then
         dbl_T1 = 0
@@ -1162,24 +1174,24 @@ For int_i = 1 To dbl_Ubound
         dbl_T1 = arr_OutputDate(int_i - 1)
         dbl_T2 = arr_OutputDate(int_i)
     End If
-
-
+    
+    
     If arr_OutputDate(int_i) <= 30 / 365 And Abs(dbl_T2 - dbl_T1 - dbl_IteStep) > 0.00001 Then
-
+    
         Do
         ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 1)
         ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 1)
-
+        
         int_j = int_j + 1
         dbl_IteTemp = dbl_T1 + dbl_IteStep * int_j
         arr_OutputDate(UBound(arr_OutputDate)) = dbl_IteTemp
         arr_OutputLabel(UBound(arr_OutputLabel)) = PDE_TimeStep.CN
-
+        
         If (dbl_IteTemp + dbl_IteStep) >= dbl_T2 Or Abs((dbl_IteTemp + dbl_IteStep - dbl_T2)) < 0.00001 Then: Exit Do
         Loop
-
+    
     End If
-
+    
 Next int_i
 'Sorting the TimeStep - BubbleSort
 Call BubbleSort(arr_OutputDate, arr_OutputLabel)
@@ -1230,38 +1242,38 @@ For int_i = 1 To UBound(arr_OutputDate)
 
     If arr_OutputLabel(int_i) = PDE_TimeStep.major Then
 
-
+        
         dbl_IteTemp = arr_OutputDate(int_i) - arr_OutputDate(int_i - 1)
-
+        
         If Round(dbl_IteTemp, 6) / 3 <= Round(1 / 365, 6) Then
-
+        
             dbl_IteTemp = (arr_OutputDate(int_i - 1) - arr_OutputDate(int_i - 2)) / 3
-
+        
             ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 2)
             ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 2)
-
+            
             arr_OutputDate(UBound(arr_OutputDate)) = arr_OutputDate(int_i - 1) - dbl_IteTemp
             arr_OutputDate(UBound(arr_OutputDate) - 1) = arr_OutputDate(int_i - 1) - dbl_IteTemp * 2
-
+            
             arr_OutputLabel(int_i - 1) = PDE_TimeStep.Implicit
             arr_OutputLabel(UBound(arr_OutputDate)) = PDE_TimeStep.Implicit
             arr_OutputLabel(UBound(arr_OutputDate) - 1) = PDE_TimeStep.CN
-
+        
         Else
             dbl_IteTemp = dbl_IteTemp / 3
-
+        
             ReDim Preserve arr_OutputDate(1 To UBound(arr_OutputDate) + 2)
             ReDim Preserve arr_OutputLabel(1 To UBound(arr_OutputLabel) + 2)
-
+            
             arr_OutputDate(UBound(arr_OutputDate)) = arr_OutputDate(int_i) - dbl_IteTemp
             arr_OutputDate(UBound(arr_OutputDate) - 1) = arr_OutputDate(int_i) - dbl_IteTemp * 2
-
+            
             arr_OutputLabel(UBound(arr_OutputDate)) = PDE_TimeStep.Implicit
             arr_OutputLabel(UBound(arr_OutputDate) - 1) = PDE_TimeStep.Implicit
         End If
+        
 
-
-
+    
     End If
 
 Next int_i
@@ -1276,23 +1288,23 @@ If bln_BusinessDay = True Then
 
     Dim cal_Leg As Calendar
     cal_Leg = irl_LegA.Calendar
-
+    
     ReDim arr_TimeStep(1 To 2) As Double
     ReDim arr_TimeLabel(1 To 2) As Integer
-
+    
     For int_i = 1 To 2
         arr_TimeStep(int_i) = arr_OutputDate(int_i)
         arr_TimeLabel(int_i) = arr_OutputLabel(int_i)
     Next int_i
-
+    
     For int_i = 3 To UBound(arr_OutputDate)
         If arr_OutputDate(int_i) * 365 + lng_ValDate = date_workday(lng_ValDate + 365 * arr_OutputDate(int_i) - 1, 1, cal_Leg.HolDates, cal_Leg.Weekends) _
            Or arr_OutputLabel(int_i) = PDE_TimeStep.major Or arr_OutputLabel(int_i) = PDE_TimeStep.important Then
            'Or arr_OutputDate(int_i) <= 30 / 365
-
+        
                 ReDim Preserve arr_TimeStep(1 To UBound(arr_TimeStep) + 1)
                 ReDim Preserve arr_TimeLabel(1 To UBound(arr_TimeLabel) + 1)
-
+                
                 arr_TimeStep(UBound(arr_TimeStep)) = arr_OutputDate(int_i)
                 arr_TimeLabel(UBound(arr_TimeStep)) = arr_OutputLabel(int_i)
         End If
@@ -1306,13 +1318,13 @@ End If
 End Sub
 
 Private Sub CreateTimeStep_ImpDate()
-
+    
 Dim int_i As Integer
 Dim int_cnt As Integer: int_cnt = 1
 Dim arr_output() As Double
 
 For int_i = 1 To UBound(arr_TimeStep)
-
+    
     If arr_TimeLabel(int_i) = PDE_TimeStep.important Or arr_TimeLabel(int_i) = PDE_TimeStep.major Or arr_TimeStep(int_i) = 0 Then
         ReDim Preserve arr_output(1 To int_cnt)
         arr_output(int_cnt) = arr_TimeStep(int_i)
@@ -1365,16 +1377,16 @@ For int_i = 1 To UBound(arr_SpotStep)
     dbl_Pu = 1 / 4 * dbl_DeltaT * (-dbl_Sigma * dbl_Sigma / dbl_spotstep / dbl_spotstep + dbl_MeanRev * arr_SpotStep(int_i) / dbl_spotstep)
     dbl_Pm = dbl_DeltaT / 2 * (dbl_Sigma * dbl_Sigma / dbl_spotstep / dbl_spotstep + arr_SpotStep(int_i))
     dbl_Pd = 1 / 4 * dbl_DeltaT * (-dbl_Sigma * dbl_Sigma / dbl_spotstep / dbl_spotstep - dbl_MeanRev * arr_SpotStep(int_i) / dbl_spotstep)
-
+    
     'Forming PDE_A & PDE_B
     For int_j = 1 To UBound(arr_SpotStep)
-
+        
         If int_j = int_i Then
             arr_PDE_A(int_i, int_j) = 1 + dbl_Theta * dbl_Pm
         ElseIf int_j - int_i = 1 Then arr_PDE_A(int_i, int_j) = dbl_Theta * dbl_Pu
         ElseIf int_j - int_i = -1 Then: arr_PDE_A(int_i, int_j) = dbl_Theta * dbl_Pd
         End If
-
+    
         If int_j = int_i Then
             arr_PDE_B(int_i, int_j) = 1 - dbl_Theta * dbl_Pm
         ElseIf int_j - int_i = 1 Then: arr_PDE_B(int_i, int_j) = -dbl_Theta * dbl_Pu
@@ -1382,36 +1394,36 @@ For int_i = 1 To UBound(arr_SpotStep)
         End If
 
     Next int_j
-
+    
         'Adjusting for Boundary Condition (LBOUND)
         If int_i = 1 Then
-
+        
             dbl_Pu_LBound = 1 / 2 * dbl_DeltaT * (dbl_MeanRev * arr_SpotStep(int_i) / dbl_spotstep)
             dbl_Pm_LBound = dbl_DeltaT / 2 * (arr_SpotStep(int_i) - dbl_MeanRev * arr_SpotStep(int_i) / dbl_spotstep)
             dbl_Pd_LBound = 0
-
+            
             arr_PDE_A(int_i, int_i) = 1 + dbl_Theta * dbl_Pm_LBound
             arr_PDE_A(int_i, int_i + 1) = dbl_Theta * dbl_Pu_LBound
-
+            
             arr_PDE_B(int_i, int_i) = 1 - dbl_Theta * dbl_Pm_LBound
             arr_PDE_B(int_i, int_i + 1) = -dbl_Theta * dbl_Pu_LBound
-
+        
         End If
-
+        
         'Adjusting for Boundary Condition (UBOUND)
         If int_i = UBound(arr_SpotStep) Then
-
+        
             dbl_Pu_UBound = 0
             dbl_Pm_UBound = dbl_DeltaT / 2 * (arr_SpotStep(int_i) + dbl_MeanRev * arr_SpotStep(int_i) / dbl_spotstep)
             dbl_Pd_UBound = 1 / 2 * dbl_DeltaT * (-dbl_MeanRev * arr_SpotStep(int_i) / dbl_spotstep)
-
+            
             arr_PDE_A(int_i, int_i) = 1 + dbl_Theta * dbl_Pm_UBound
             arr_PDE_A(int_i, int_i - 1) = dbl_Theta * dbl_Pd_UBound
-
+            
             arr_PDE_B(int_i, int_i) = 1 - dbl_Theta * dbl_Pm_UBound
             arr_PDE_B(int_i, int_i - 1) = -dbl_Theta * dbl_Pd_UBound
         End If
-
+    
 Next int_i
 
 If pde_TS = PDE_TimeStep.CN Or pde_TS = PDE_TimeStep.important Then
@@ -1478,14 +1490,14 @@ Public Function LookUpSigma(dbl_T1 As Double) As Double
 Dim int_cnt As Integer
 Dim int_max As Integer
 
-For int_cnt = 1 To UBound(arr_Sigma)
-    If arr_Sigma(int_cnt, 2) >= dbl_T1 Then
+For int_cnt = 1 To UBound(arr_sigma)
+    If arr_sigma(int_cnt, 2) >= dbl_T1 Then
         int_max = int_cnt
         Exit For
     End If
 Next int_cnt
 
-LookUpSigma = arr_Sigma(int_max, 1)
+LookUpSigma = arr_sigma(int_max, 1)
 
 End Function
 
@@ -1499,16 +1511,16 @@ Dim dbl_SortTempLabel As Double
 For int_i = LBound(arr_OutputDate, 1) To UBound(arr_OutputDate, 1)
      dbl_SortTempDate = arr_OutputDate(int_i)
      dbl_SortTempLabel = arr_OutputLabel(int_i)
-
+     
      For int_j = LBound(arr_OutputDate, 1) To UBound(arr_OutputDate, 1)
          If arr_OutputDate(int_j) > dbl_SortTempDate Then
-
+         
              arr_OutputDate(int_i) = arr_OutputDate(int_j)
              arr_OutputLabel(int_i) = arr_OutputLabel(int_j)
-
+             
              arr_OutputDate(int_j) = dbl_SortTempDate
              arr_OutputLabel(int_j) = dbl_SortTempLabel
-
+             
              dbl_SortTempDate = arr_OutputDate(int_i)
              dbl_SortTempLabel = arr_OutputLabel(int_i)
          End If
@@ -1525,15 +1537,15 @@ Dim dbl_SortTempDate As Double
 
 For int_i = LBound(arr_OutputDate, 1) To UBound(arr_OutputDate, 1)
      dbl_SortTempDate = arr_OutputDate(int_i)
-
+     
      For int_j = LBound(arr_OutputDate, 1) To UBound(arr_OutputDate, 1)
          If arr_OutputDate(int_j) > dbl_SortTempDate Then
-
+         
              arr_OutputDate(int_i) = arr_OutputDate(int_j)
              arr_OutputDate(int_j) = dbl_SortTempDate
-
+            
              dbl_SortTempDate = arr_OutputDate(int_i)
-
+             
          End If
      Next int_j
  Next int_i
@@ -1573,7 +1585,7 @@ Else
     dbl_X = arr_payoff(j - 1)
     dbl_Y = arr_payoff(j)
     dbl_Z = arr_payoff(j + 1)
-
+     
     arr_gamma(j) = (dbl_X - 2 * dbl_Y + dbl_Z) / (dbl_spotstep * dbl_spotstep)
     arr_abs_gamma(j) = Abs(arr_gamma(j))
 End If
@@ -1629,7 +1641,7 @@ ReDim arr_LinIntpOpt(0, 1 To int_pts4smoothing) As Variant
         '__________________mid smoothing___________________________________
         '~~LinIntp ~~
         arr_LinIntpUnd = Linear_pts(k, arr_UndVal(), int_pts4smoothing)
-
+        
         If bln_LastUndCF = "FALSE" Then _
         arr_LinIntpOpt = Linear_pts(k, arr_optval(), int_pts4smoothing)
 
@@ -1639,7 +1651,7 @@ ReDim arr_LinIntpOpt(0, 1 To int_pts4smoothing) As Variant
 
         '________________adjacent left smoothing__________________________
         '~~LinIntp ~~
-
+   
         If (k - 1) > LBound(arr_UndVal) Then
             arr_LinIntpUnd = Linear_pts(k - 1, arr_UndVal(), int_pts4smoothing)
         End If
@@ -1650,7 +1662,7 @@ ReDim arr_LinIntpOpt(0, 1 To int_pts4smoothing) As Variant
             End If
         End If
 
-
+                
         '~~Payoff, Trapeze & Smoothing ~~
         If (k - 1) > LBound(arr_optval) Then
             dbl_left_smooth = dbl_smoothval(dbl_spotstep, int_pts4smoothing, arr_LinIntpUnd(), arr_LinIntpOpt(), bln_LastUndCF)
@@ -1663,13 +1675,13 @@ ReDim arr_LinIntpOpt(0, 1 To int_pts4smoothing) As Variant
         If (k + 1) < UBound(arr_UndVal) Then
         arr_LinIntpUnd = Linear_pts(k + 1, arr_UndVal(), int_pts4smoothing)
         End If
-
+        
         If bln_LastUndCF = "FALSE" Then
             If (k + 1) < UBound(arr_optval) Then
                 arr_LinIntpOpt = Linear_pts(k + 1, arr_optval(), int_pts4smoothing)
             End If
         End If
-
+        
         '~~Payoff, Trapeze & Smoothing ~~
         If (k + 1) < UBound(arr_optval) Then
             dbl_right_smooth = dbl_smoothval(dbl_spotstep, int_pts4smoothing, arr_LinIntpUnd(), arr_LinIntpOpt(), bln_LastUndCF)
@@ -1680,11 +1692,11 @@ ReDim arr_LinIntpOpt(0, 1 To int_pts4smoothing) As Variant
 
         '________________replace into Payoff = MAX(Und, Opt, 0)______________
          If dbl_3_max(0, dbl_mid_smooth) <> 0 Then arr_payoff(k) = dbl_mid_smooth
-
+        
         If (k - 1) > LBound(arr_optval) Then
             If dbl_3_max(0, dbl_left_smooth) <> 0 Then arr_payoff(k - 1) = dbl_3_max(0, dbl_left_smooth)
         End If
-
+        
         If (k + 1) < UBound(arr_optval) Then
             If dbl_3_max(0, dbl_right_smooth) <> 0 Then arr_payoff(k + 1) = dbl_3_max(0, dbl_right_smooth)
         End If
@@ -1697,7 +1709,7 @@ End Function
 
 Private Function dbl_smoothval(dbl_spotstep As Double, int_pts4smoothing As Integer, _
 arr_LinIntpUnd() As Variant, arr_LinIntpOpt() As Variant, Optional LastUndCF As Boolean) As Double
-
+ 
 ReDim arr_payoffaftersmooth(1 To int_pts4smoothing) As Variant
 ReDim arr_trapeze(1 To int_pts4smoothing) As Variant
 
@@ -1706,27 +1718,27 @@ Dim dbl_trapeze_const As Double: dbl_trapeze_const = dbl_spotstep * 2 / 10 / dbl
 Dim i As Integer
 
 For i = 1 To int_pts4smoothing
-
+    
     If LastUndCF = "TRUE" Then
         arr_payoffaftersmooth(i) = dbl_3_max(arr_LinIntpUnd(i), 0)
     Else
       arr_payoffaftersmooth(i) = dbl_3_max(arr_LinIntpUnd(i), arr_LinIntpOpt(i), 0)
     End If
-
-
+    
+    
     If (i = 1) Or (i = int_pts4smoothing) Then
         arr_trapeze(i) = 0
     Else
         arr_trapeze(i) = arr_payoffaftersmooth(i)
     End If
-
+                
    dbl_sumval = dbl_sumval + arr_payoffaftersmooth(i) + arr_trapeze(i)
-
-
+        
+  
 Next i
-
+    
     dbl_smoothval = dbl_sumval / 2 * dbl_trapeze_const
-
+    
 
 End Function
 
@@ -1750,15 +1762,15 @@ For i = 2 To int_midpt - 1
     arr_LinIntp(i) = arr_LinIntp(i - 1) _
     + (arr_LinIntp(int_midpt) - arr_LinIntp(1)) / (int_midpt - 1)
 Next i
-
+    
 For i = (int_midpt + 1) To (int_pts4smoothing - 1)
     arr_LinIntp(i) = arr_LinIntp(i - 1) + _
     (arr_LinIntp(int_pts4smoothing) - arr_LinIntp(int_midpt)) / (int_pts4smoothing - int_midpt)
 Next i
 
 Linear_pts = arr_LinIntp
-
-
+ 
+        
 End Function
 
 Private Function dbl_3_max(x As Variant, y As Variant, Optional z As Variant) As Double
@@ -1797,7 +1809,7 @@ For p = 1 To int_k
 sumarray = sumarray + arr_sum(p)
 
 Next p
-
+ 
 End Function
 Private Function max_array(arr() As Variant) As Double
 
@@ -1830,9 +1842,9 @@ ReDim arr_U(1 To int_length, 1 To int_length) As Double
 
 For i = 1 To int_length
     arr_L(i, 1) = arr_x(i, 1)
-
+    
     arr_U(i, i) = 1
-
+    
     If i > 1 Then
         arr_U(1, i) = arr_x(1, i) / arr_L(1, 1)
     End If
@@ -1844,11 +1856,11 @@ For j = 2 To int_length
 
     For i = 2 To j - 1
         dbl_sum = 0
-
+        
         For k = 1 To i - 1
             dbl_sum = dbl_sum + arr_L(i, k) * arr_U(k, j)
         Next k
-
+        
         arr_U(i, j) = (arr_x(i, j) - dbl_sum) / arr_L(i, i)
     Next i
 
@@ -1905,9 +1917,11 @@ End Function
 Private Function HW_Variance(dbl_Sigma As Double, dbl_MeanRev As Double, dbl_T1 As Double, dbl_T2 As Double) As Double
 
 Dim dbl_Output As Double
-
+    
 dbl_Output = dbl_Sigma * dbl_Sigma / (2 * dbl_MeanRev) * (Exp(2 * dbl_MeanRev * dbl_T2) - Exp(2 * dbl_MeanRev * dbl_T1))
 HW_Variance = dbl_Output
 
 End Function
 '''''''''TO BE PUT UNDER MODULE - HW_FUNCTION'''''''''
+
+
