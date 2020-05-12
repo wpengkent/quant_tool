@@ -528,181 +528,185 @@ Black76 = WorksheetFunction.Max(0, dbl_Output)
 End Function
 
 Private Property Get Cox_Fwd(Optional bln_American As Boolean = True) As Double
-    'Kindly note the diff between the code and the quant test report formula
-    'Quant Test Report: Payment Spot Date = Maturity Date + Option Spot for cash and Maturity Date + Spot delay for delivery
-    'Code: Payment Spot Date = Valuation Date + Option Spot
+'Kindly note the diff between the code and the quant test report formula
+'Quant Test Report: Payment Spot Date = Maturity Date + Option Spot for cash and Maturity Date + Spot delay for delivery
+'Code: Payment Spot Date = Valuation Date + Option Spot
 
-    'Quant Test Report: Settlement Date = Valuation Date + Option Spot
-    'Code: Settlement Date = Maturity Date + Option Spot for cash and Maturity Date + Spot delay for delivery (Part of Deal Entry Info in worksheet)
-
-    'Cox Forward Model
-
-    Dim i As Integer, j As Integer
-    Dim dbl_TDiv As Double ' ex dividend date to spot date
-    Dim int_DivPeriod As Integer
-    Dim lng_DivNode As Long
-    Dim dbl_CFDivToDivNode As Long
-    Dim temp As Double
-    Dim dbl_DivDF_dt As Double
-
-    'Premilinaries before Contructing Binomial Tree
-    'int_n = 30
-    int_n = 500
-
-    If str_DivType = "Cash" Then Call FillDivSpotDate
-
-    Call FillSettlementDate ' fill up payment spot date!! not settlement date
+'Quant Test Report: Settlement Date = Valuation Date + Option Spot
+'Code: Settlement Date = Maturity Date + Option Spot for cash and Maturity Date + Spot delay for delivery (Part of Deal Entry Info in worksheet)
 
 
-    dbl_r = irc_SpotDisc.Lookup_Rate(lng_PaymentSpotDate, lng_SettlementDate, "ZERO", , , True) / 100
 
 
-    'computation of binomial trees input
-    Dim dbl_dt_Te As Double
-    dbl_dt_Te = dbl_Time_MatToVal / int_n
+
+'Cox Forward Model
+
+Dim i As Integer, j As Integer
+Dim dbl_TDiv As Double ' ex dividend date to spot date
+Dim int_DivPeriod As Integer
+Dim lng_DivNode As Long
+Dim dbl_CFDivToDivNode As Long
+Dim temp As Double
+Dim dbl_DivDF_dt As Double
+
+'Premilinaries before Contructing Binomial Tree
+'int_n = 30
+int_n = 500
+
+If str_DivType = "Cash" Then Call FillDivSpotDate
+
+Call FillSettlementDate ' fill up payment spot date!! not settlement date
 
 
-    dbl_dt = (lng_DelivDate - lng_SpotDate) / 365 / int_n
-
-    If str_Settlement = "CASH" Then dbl_dt = (lng_SettlementDate - lng_PaymentSpotDate) / 365 / int_n
-
-    Dim dbl_dt_Opt As Double
-    Dim dbl_dt_Und As Double
-
-    dbl_dt_Opt = (lng_SettlementDate - lng_PaymentSpotDate) / 365 / int_n
-    dbl_dt_Und = (lng_DelivDate - lng_SpotDate) / 365 / int_n
-    dbl_r_Und = irc_SpotDisc.Lookup_Rate(lng_SpotDate, lng_DelivDate, "ZERO", , , True) / 100
+dbl_r = irc_SpotDisc.Lookup_Rate(lng_PaymentSpotDate, lng_SettlementDate, "ZERO", , , True) / 100
 
 
-    dbl_bin_u = Exp(dbl_Vol / 100 * (dbl_Time_MatToVal / int_n) ^ 0.5)
-    dbl_bin_d = 1 / dbl_bin_u
+'computation of binomial trees input
+Dim dbl_dt_Te As Double
+dbl_dt_Te = dbl_Time_MatToVal / int_n
 
 
-    dbl_DF_dt = Exp(-dbl_r * dbl_dt_Opt)
+dbl_dt = (lng_DelivDate - lng_SpotDate) / 365 / int_n
 
-    dbl_bin_p = (1 - dbl_bin_d) / (dbl_bin_u - dbl_bin_d)
-    dbl_bin_q = 1 - dbl_bin_p
+If str_Settlement = "CASH" Then dbl_dt = (lng_SettlementDate - lng_PaymentSpotDate) / 365 / int_n
 
-    'Converting equity spot price to equity forward price (handling the dividend here)
+Dim dbl_dt_Opt As Double
+Dim dbl_dt_Und As Double
+
+dbl_dt_Opt = (lng_SettlementDate - lng_PaymentSpotDate) / 365 / int_n
+dbl_dt_Und = (lng_DelivDate - lng_SpotDate) / 365 / int_n
+dbl_r_Und = irc_SpotDisc.Lookup_Rate(lng_SpotDate, lng_DelivDate, "ZERO", , , True) / 100
+
+
+dbl_bin_u = Exp(dbl_Vol / 100 * (dbl_Time_MatToVal / int_n) ^ 0.5)
+dbl_bin_d = 1 / dbl_bin_u
+
+
+dbl_DF_dt = Exp(-dbl_r * dbl_dt_Opt)
+
+dbl_bin_p = (1 - dbl_bin_d) / (dbl_bin_u - dbl_bin_d)
+dbl_bin_q = 1 - dbl_bin_p
+
+'Converting equity spot price to equity forward price (handling the dividend here)
+
+
     If str_DivType = "" Then
         dbl_Forward = dbl_Spot * 1 / dbl_DFMatSpotToValSpot
     ElseIf str_DivType = "Cash" Then
         dbl_Forward = (dbl_Spot / dbl_DFDivPaymentToValSpot - dbl_DivAmount) / dbl_DFMatSpotToDivPayment
     End If
 
-    Dim dbl_r1 As Double
-    Dim dbl_r2 As Double
+Dim dbl_r1 As Double
+Dim dbl_r2 As Double
 
-    If str_DivType = "Cash" Then
-        dbl_TDiv = (lng_DivExDate - lng_DivSpotDate) / (lng_DivExpiryDate - lng_DivSpotDate) * dbl_dt_Und * int_n
-        'Set dbl_r1 to 0 when valuation date is on or after ex-div date
-        If dbl_TDiv <= 0 Then
-            dbl_r1 = 0
-        Else
-            dbl_r1 = Log(1 / irc_SpotDisc.Lookup_Rate(lng_SpotDate, lng_DivExDate, "DF", , , True)) / dbl_TDiv
-        dbl_r2 = Log(1 / irc_SpotDisc.Lookup_Rate(lng_DivExDate, lng_DelivDate, "DF", , , True)) / (dbl_dt_Und * int_n - dbl_TDiv)
-    End If
 
-    ''define array for the tree. arr_Binomial(time interval, branches at each time interval, 1=forward price simulation; 2= payoff, 3 = spot price
-    ReDim arr_Binomial(0 To int_n, 1 To int_n + 1, 1 To 5) As Variant
-    'arr_Binomial(x,y,1) = Forward Value
-    'arr_Binomial(x,y,2) = Max (Option Value, Exercise Value, 0)
-    'arr_Binomial(x,y,3) = Spot Value
+If str_DivType = "Cash" Then
+    dbl_TDiv = (lng_DivExDate - lng_DivSpotDate) / (lng_DivExpiryDate - lng_DivSpotDate) * dbl_dt_Und * int_n
+    dbl_r1 = Log(1 / irc_SpotDisc.Lookup_Rate(lng_SpotDate, lng_DivExDate, "DF", , , True)) / dbl_TDiv
+    dbl_r2 = Log(1 / irc_SpotDisc.Lookup_Rate(lng_DivExDate, lng_DelivDate, "DF", , , True)) / (dbl_dt_Und * int_n - dbl_TDiv)
+End If
+
+''define array for the tree. arr_Binomial(time interval, branches at each time interval, 1=forward price simulation; 2= payoff, 3 = spot price
+ReDim arr_Binomial(0 To int_n, 1 To int_n + 1, 1 To 5) As Variant
+'arr_Binomial(x,y,1) = Forward Value
+'arr_Binomial(x,y,2) = Max (Option Value, Exercise Value, 0)
+'arr_Binomial(x,y,3) = Spot Value
 
 
 
-    '' Finding div node. If dividend falls between node t and t+1, return t
-    '' Setting the stock price at t=0 for div-paying and non-div-paying stock
-    Dim dbl_NodeDiv As Double
+'' Finding div node. If dividend falls between node t and t+1, return t
+'' Setting the stock price at t=0 for div-paying and non-div-paying stock
+Dim dbl_NodeDiv As Double
 
-    If str_DivType <> "" And lng_ValDate < lng_DivExDate Then
-        dbl_NodeDiv = dbl_TDiv / dbl_dt_Und
-        int_DivPeriod = WorksheetFunction.RoundDown(dbl_NodeDiv, 0)
-    End If
-
-
-
-    Dim dbl_DfDivExDiv As Double
-    dbl_DfDivExDiv = irc_SpotDisc.Lookup_Rate(lng_DivExDate, lng_DivPaymentDate, "DF", , , True)
+If str_DivType <> "" And lng_ValDate < lng_DivExDate Then
+    dbl_NodeDiv = dbl_TDiv / dbl_dt_Und
+    int_DivPeriod = WorksheetFunction.RoundDown(dbl_NodeDiv, 0)
+End If
 
 
-    Dim dbl_ExDiv As Double
-    dbl_ExDiv = dbl_DivAmount * dbl_DfDivExDiv
 
-    arr_Binomial(0, 1, 1) = dbl_Forward
+Dim dbl_DfDivExDiv As Double
+dbl_DfDivExDiv = irc_SpotDisc.Lookup_Rate(lng_DivExDate, lng_DivPaymentDate, "DF", , , True)
 
-    '' Binomial tree starts here
-    For i = 1 To int_n
-        For j = 1 To i
-            arr_Binomial(i, j, 1) = arr_Binomial(i - 1, j, 1) * dbl_bin_u
-        Next j
-            arr_Binomial(i, i + 1, 1) = arr_Binomial(i - 1, i, 1) * dbl_bin_d
-    Next i
 
-        For i = 0 To int_n - 1
-            For j = 1 To i + 1
-                    If str_DivType = "" Then
-                        arr_Binomial(i, j, 3) = arr_Binomial(i, j, 1) * Exp(-dbl_r_Und * (int_n - i) * dbl_dt_Und)
-                    Else
-                        If i <= int_DivPeriod And lng_ValDate < lng_DivExDate Then
-                            arr_Binomial(i, j, 3) = arr_Binomial(i, j, 1) * Exp(-(dbl_r2 * (int_n - dbl_NodeDiv) * dbl_dt_Und + dbl_r1 * (dbl_NodeDiv - i) * dbl_dt_Und)) + _
-                                dbl_ExDiv / Exp(dbl_r1 * (dbl_NodeDiv - i) * dbl_dt_Und)
-                        Else
-                            arr_Binomial(i, j, 3) = arr_Binomial(i, j, 1) * Exp(-dbl_r2 * (int_n - i) * dbl_dt_Und)
-                        End If
-                    End If
-            Next j
-        Next i
+Dim dbl_ExDiv As Double
+dbl_ExDiv = dbl_DivAmount * dbl_DfDivExDiv
 
-    ''Initialization of payoff at the last node
+arr_Binomial(0, 1, 1) = dbl_Forward
 
-    For j = 1 To int_n
-        arr_Binomial(int_n - 1, j, 2) = Black76(bln_IsCall, dbl_Strike, arr_Binomial(int_n - 1, j, 1), dbl_Vol, dbl_dt_Opt, dbl_dt_Te, dbl_r)
+'' Binomial tree starts here
+For i = 1 To int_n
+    For j = 1 To i
+        arr_Binomial(i, j, 1) = arr_Binomial(i - 1, j, 1) * dbl_bin_u
     Next j
+        arr_Binomial(i, i + 1, 1) = arr_Binomial(i - 1, i, 1) * dbl_bin_d
+Next i
 
-    ''Discounting the tree backward
-    For i = int_n - 1 To 0 Step -1
-
-
+    For i = 0 To int_n - 1
         For j = 1 To i + 1
-
-                If i <> int_n - 1 Then
-                    arr_Binomial(i, j, 2) = (dbl_bin_p * arr_Binomial(i + 1, j, 2) + dbl_bin_q * arr_Binomial(i + 1, j + 1, 2)) * dbl_DF_dt
-                End If
-
-                If bln_American = True Then
-                    arr_Binomial(i, j, 2) = WorksheetFunction.Max(arr_Binomial(i, j, 2), int_optdirection * (arr_Binomial(i, j, 3) - dbl_Strike))
-                End If
-
-                Dim dbl_S_BeforeDiv As Double
-                Dim dbl_S_AfterDiv As Double
-
-                'Early exercise is optimal right before the ex-div date when there is dividend
-                'Only execute this when valuation date is before ex-div date
-                If str_DivType <> "" Then
-                    If i = int_DivPeriod and int_DivPeriod >0 Then
-
-                        dbl_S_AfterDiv = (arr_Binomial(i, j, 1)) _
-                                            * Exp(-dbl_r2 * (int_n - dbl_NodeDiv) * dbl_dt_Und)
-
-                        dbl_S_BeforeDiv = dbl_S_AfterDiv + dbl_ExDiv
-
-                        arr_Binomial(i, j, 2) = WorksheetFunction.Max(arr_Binomial(i, j, 2), _
-                            int_optdirection * (dbl_S_BeforeDiv - dbl_Strike) * Exp(-dbl_r * (dbl_NodeDiv - int_DivPeriod) * dbl_dt_Opt), _
-                            int_optdirection * (dbl_S_AfterDiv - dbl_Strike) * Exp(-dbl_r * (dbl_NodeDiv - int_DivPeriod) * dbl_dt_Opt))
-
-
+                If str_DivType = "" Then
+                    arr_Binomial(i, j, 3) = arr_Binomial(i, j, 1) * Exp(-dbl_r_Und * (int_n - i) * dbl_dt_Und)
+                Else
+                    If i <= int_DivPeriod And lng_ValDate < lng_DivExDate Then
+                         arr_Binomial(i, j, 3) = arr_Binomial(i, j, 1) * Exp(-(dbl_r2 * (int_n - dbl_NodeDiv) * dbl_dt_Und + dbl_r1 * (dbl_NodeDiv - i) * dbl_dt_Und)) + _
+                            dbl_ExDiv / Exp(dbl_r1 * (dbl_NodeDiv - i) * dbl_dt_Und)
+                    Else
+                         arr_Binomial(i, j, 3) = arr_Binomial(i, j, 1) * Exp(-dbl_r2 * (int_n - i) * dbl_dt_Und)
                     End If
                 End If
-
         Next j
     Next i
 
-    ''Final step
+''Initialization of payoff at the last node
 
-    If dbl_r <= 0 And bln_IsCall = True Then Cox_Fwd = (dbl_Spot - dbl_Strike)
+For j = 1 To int_n
+    arr_Binomial(int_n - 1, j, 2) = Black76(bln_IsCall, dbl_Strike, arr_Binomial(int_n - 1, j, 1), dbl_Vol, dbl_dt_Opt, dbl_dt_Te, dbl_r)
+Next j
 
-    Cox_Fwd = arr_Binomial(0, 1, 2) * irc_SpotDisc.Lookup_Rate(lng_ValDate, lng_PaymentSpotDate, "DF", , , True)
+''Discounting the tree backward
+For i = int_n - 1 To 0 Step -1
+
+
+    For j = 1 To i + 1
+
+            If i <> int_n - 1 Then
+                arr_Binomial(i, j, 2) = (dbl_bin_p * arr_Binomial(i + 1, j, 2) + dbl_bin_q * arr_Binomial(i + 1, j + 1, 2)) * dbl_DF_dt
+            End If
+
+            If bln_American = True Then
+                arr_Binomial(i, j, 2) = WorksheetFunction.Max(arr_Binomial(i, j, 2), int_optdirection * (arr_Binomial(i, j, 3) - dbl_Strike))
+            End If
+
+Dim dbl_S_BeforeDiv As Double
+Dim dbl_S_AfterDiv As Double
+
+        If str_DivType <> "" Then
+            If i = int_DivPeriod Then
+
+
+                dbl_S_AfterDiv = (arr_Binomial(i, j, 1)) _
+                                    * Exp(-dbl_r2 * (int_n - dbl_NodeDiv) * dbl_dt_Und)
+
+                dbl_S_BeforeDiv = dbl_S_AfterDiv + dbl_ExDiv
+
+
+
+                arr_Binomial(i, j, 2) = WorksheetFunction.Max(arr_Binomial(i, j, 2), _
+                    int_optdirection * (dbl_S_BeforeDiv - dbl_Strike) * Exp(-dbl_r * (dbl_NodeDiv - int_DivPeriod) * dbl_dt_Opt), _
+                    int_optdirection * (dbl_S_AfterDiv - dbl_Strike) * Exp(-dbl_r * (dbl_NodeDiv - int_DivPeriod) * dbl_dt_Opt))
+
+
+            End If
+        End If
+
+    Next j
+Next i
+
+''Final step
+
+If dbl_r <= 0 And bln_IsCall = True Then Cox_Fwd = (dbl_Spot - dbl_Strike)
+
+Cox_Fwd = arr_Binomial(0, 1, 2) * irc_SpotDisc.Lookup_Rate(lng_ValDate, lng_PaymentSpotDate, "DF", , , True)
 
 
 End Property
