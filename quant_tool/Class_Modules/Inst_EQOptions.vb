@@ -597,7 +597,11 @@ Private Property Get Cox_Fwd(Optional bln_American As Boolean = True) As Double
 
     If str_DivType = "Cash" Then
         dbl_TDiv = (lng_DivExDate - lng_DivSpotDate) / (lng_DivExpiryDate - lng_DivSpotDate) * dbl_dt_Und * int_n
-        dbl_r1 = Log(1 / irc_SpotDisc.Lookup_Rate(lng_SpotDate, lng_DivExDate, "DF", , , True)) / dbl_TDiv
+        'Set dbl_r1 to 0 when valuation date is on or after ex-div date
+        If dbl_TDiv <= 0 Then
+            dbl_r1 = 0
+        Else
+            dbl_r1 = Log(1 / irc_SpotDisc.Lookup_Rate(lng_SpotDate, lng_DivExDate, "DF", , , True)) / dbl_TDiv
         dbl_r2 = Log(1 / irc_SpotDisc.Lookup_Rate(lng_DivExDate, lng_DelivDate, "DF", , , True)) / (dbl_dt_Und * int_n - dbl_TDiv)
     End If
 
@@ -672,8 +676,10 @@ Private Property Get Cox_Fwd(Optional bln_American As Boolean = True) As Double
             Dim dbl_S_BeforeDiv As Double
             Dim dbl_S_AfterDiv As Double
 
+            'Early exercise is optimal right before the ex-div date when there is dividend
+            'Only execute this when valuation date is before ex-div date
             If str_DivType <> "" Then
-                If i = int_DivPeriod Then
+                If i = int_DivPeriod and int_DivPeriod >0 Then
 
                     dbl_S_AfterDiv = (arr_Binomial(i, j, 1)) _
                                         * Exp(-dbl_r2 * (int_n - dbl_NodeDiv) * dbl_dt_Und)
