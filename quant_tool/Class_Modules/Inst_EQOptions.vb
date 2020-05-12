@@ -597,11 +597,14 @@ Private Property Get Cox_Fwd(Optional bln_American As Boolean = True) As Double
 
     If str_DivType = "Cash" Then
         dbl_TDiv = (lng_DivExDate - lng_DivSpotDate) / (lng_DivExpiryDate - lng_DivSpotDate) * dbl_dt_Und * int_n
+
         'Set dbl_r1 to 0 when valuation date is on or after ex-div date
         If dbl_TDiv <= 0 Then
             dbl_r1 = 0
         Else
             dbl_r1 = Log(1 / irc_SpotDisc.Lookup_Rate(lng_SpotDate, lng_DivExDate, "DF", , , True)) / dbl_TDiv
+        End If
+
         dbl_r2 = Log(1 / irc_SpotDisc.Lookup_Rate(lng_DivExDate, lng_DelivDate, "DF", , , True)) / (dbl_dt_Und * int_n - dbl_TDiv)
     End If
 
