@@ -303,52 +303,42 @@ Public Sub LoadRates()
     Debug.Assert map_Rules.Dict_SourceTables.Exists("CAPVOL")
     Dim str_TableName As String: str_TableName = map_Rules.Dict_SourceTables("CAPVOL")
 
-
     ' Query
-    'str_SQLCode = "SELECT [Data Date], Currency, Term, SortTerm, Rate " _
-            & "FROM " & str_TableName _
-            & " WHERE [Data Date] = #" & Convert_SQLDate(cfg_Settings.CurrentDataDate) & "# AND Currency = '" & str_NameInDB & "' " & str_OptionalExclusions & " AND [Strike] =" & strikeQJK _
-            & " ORDER BY [SortTerm];"
-
-   'QMOD changed SQL Query
-       str_SQLCode = "SELECT [Data Date], Currency, Term, SortTerm, Rate " _
+    ' QMOD changed SQL Query
+    str_SQLCode = "SELECT [Data Date], Currency, Term, SortTerm, Rate " _
             & "FROM " & str_TableName _
             & " WHERE [Data Date] = #" & Convert_SQLDate(cfg_Settings.CurrentDataDate) & "#  AND Currency = '" & str_NameInDB & "' " & str_OptionalExclusions & " AND [Strike] ='" _
             & getStrikeQJK(str_CurveName) & "' AND [Name] = '" & getCurveNameSQL(str_CurveName) _
             & "' ORDER BY [SortTerm];"
 
-
     Me.ClearCurve
+
     Call Action_Query_Access(cfg_Settings.RatesDBPath, str_SQLCode, rng_QueryTopLeft)
 
-    bln_ATMvols = False  'QJK code 28/01/2015
-    If getStrikeQJK(str_CurveName) = 0 Then 'QJK code 28/01/2015
-   ' bln_Bootstrap = False 'QJK code 14/01/2015
-    bln_ATMvols = True    'QJK code 28/01/2015
+    bln_ATMvols = False
+
+    If getStrikeQJK(str_CurveName) = 0 Then
+        bln_ATMvols = True
     End If
 
     Call AssignRanges
 
-
-
-
     ' Set instrument being shocked (cap or caplet) and set up associated ranges
     rng_ShockedCapVols.Value = rng_OrigCapVols.Value
-    interpolateOn = rngInterpolateOn.Value  'QJK code 16/12/2014
+    interpolateOn = rngInterpolateOn.Value
+
     ' Derive cap vol pillar dates
     Call GeneratePillarDates(True, True, True)
     Dim cal_pmt As Calendar: cal_pmt = cas_Calendars.Lookup_Calendar(fld_LegParams.PmtCal)
 
     If bln_ATMvols = False Then
-       ' Call Me.Bootstrap(True)
-       If interpolateOn = "FORWARD" Then   'QJK code 16/12/2014 interpolate on forward vols
-       Call Me.Bootstrap_QJK(True)
-       Else
-       Call Me.Bootstrap_ParVols(True)                                 'QJK code 16/12/2014 interpolate on par vols
-       End If
-    Else
-      ' rng_FinalVols.Value = rng_OrigCapVols.Value
+        If interpolateOn = "FORWARD" Then   ' interpolate on forward vols
+            Call Me.Bootstrap_QJK(True)
+        Else
+            Call Me.Bootstrap_ParVols(True) ' interpolate on par vols
+        End If
     End If
+
 End Sub
 
 Public Sub SetParams(rng_QueryParams As Range)
@@ -489,15 +479,15 @@ Private Sub AssignRanges(Optional bln_betweenStrikePillars As Boolean = False, O
 End Sub
 
 Private Sub interpolateVols(dbl_Strike As Double)
-'Interpolate Vol according to strike and then store dblArr_FinalVols
+    'Interpolate Vol according to strike and then store dblArr_FinalVols
 
-Dim int_count As Integer
-ReDim dblArr_FinalVols(UBound(dblArr_PillarVols_1))
+    Dim int_count As Integer
+    ReDim dblArr_FinalVols(UBound(dblArr_PillarVols_1))
 
-For int_count = 1 To UBound(dblArr_PillarVols_1)
-    dblArr_FinalVols(int_count) = dblArr_PillarVols_1(int_count) + (dblArr_PillarVols_2(int_count) - dblArr_PillarVols_1(int_count)) / (dbl_StrikePillar_2 - dbl_StrikePillar_1) _
-    * (dbl_Strike - dbl_StrikePillar_1)
-Next int_count
+    For int_count = 1 To UBound(dblArr_PillarVols_1)
+        dblArr_FinalVols(int_count) = dblArr_PillarVols_1(int_count) + (dblArr_PillarVols_2(int_count) - dblArr_PillarVols_1(int_count)) / (dbl_StrikePillar_2 - dbl_StrikePillar_1) _
+            * (dbl_Strike - dbl_StrikePillar_1)
+    Next int_count
 
 End Sub
 
@@ -921,22 +911,20 @@ End Sub
 'QMOD added code for curvename SQL filter
 'gets curvename for RER and loks it up in Microsoft Access
 Public Function getCurveNameSQL(curvenameRER As String) As String
-Dim temp As String
+    Dim temp As String
 
-Select Case Left(curvenameRER, 6)
-Case "MYR_6M"
-temp = "MYR 6M"
-Case "USD_6M"
-temp = "USD 6M"
-Case "MYR_3M"
-temp = "MYR 3M"
-Case "USD_3M"
-temp = "USD 3M"
-End Select
+    Select Case Left(curvenameRER, 6)
+        Case "MYR_6M"
+            temp = "MYR 6M"
+        Case "USD_6M"
+            temp = "USD 6M"
+        Case "MYR_3M"
+            temp = "MYR 3M"
+        Case "USD_3M"
+            temp = "USD 3M"
+    End Select
 
-
-
-getCurveNameSQL = temp
+    getCurveNameSQL = temp
 End Function
 
 Public Function getStrikeQJK(curvenameRER As String) As Double
@@ -946,8 +934,6 @@ Public Function getStrikeQJK(curvenameRER As String) As Double
     tempStart = WorksheetFunction.Find("=", curvenameRER) + 1
 
     temp = Mid(curvenameRER, tempStart, tempLength - tempStart + 1)
-
-
 
     getStrikeQJK = temp
 End Function
@@ -1027,56 +1013,47 @@ Public Sub Bootstrap_QJK(bln_CopyToOrig As Boolean)
     Dim dbl_PrevCapletVol As Double: dbl_PrevCapletVol = 0
     ReDim dblArr_FinalVols(1 To int_NumCaplets) As Double  ' Reset final vols
     Dim intLst_FailedPoints As New Collection
-    ReDim bln_CalibrationSolved(1 To int_NumCaplets) As Boolean   'QJK code 30/01/2015, number of caplets used for true or false
+    ReDim bln_CalibrationSolved(1 To int_NumCaplets) As Boolean   ' number of caplets used for true or false
 
     ' Secant method variables
     Dim dic_SecantParams As Dictionary, dic_SecantOutputs As Dictionary
     Dim bln_SolutionPossible As Boolean
     Dim int_PrevFinalIndex As Integer: int_PrevFinalIndex = 0
-        Dim sumCapPremiums() As Double: ReDim sumCapPremiums(1 To int_NumCaps) As Double   'QCode 11/08/2014
-        Dim end_FirstCap As Double: Dim j As Double   'QCode 11/08/2014
-        Dim temp() As Double: ReDim temp(1 To int_NumCaplets) As Double:   'QCode 11/08/2014
+    Dim sumCapPremiums() As Double: ReDim sumCapPremiums(1 To int_NumCaps) As Double
+    Dim end_FirstCap As Double: Dim j As Double
+    Dim temp() As Double: ReDim temp(1 To int_NumCaplets) As Double:
+
     For int_CapCtr = 1 To int_NumCaps
         fld_Params.LegA.Term = rng_CapTerms(int_CapCtr, 1).Value
         fld_Params.LegB.Term = fld_Params.LegA.Term
         Set irs_Active = GetInst_IRS(fld_Params, dic_CurveSet, dic_GlobalStaticInfo)
-        Set irl_Floating = irs_Active.LegB
-        'QJKmod
+        Set irl_Floating = irs_Active.
+
         strikeQJK = rngStrikeQJK.Value
-        dbl_ActiveATMStrike = strikeQJK   'QCode 06/08/2014
-        'dbl_ActiveATMStrike = irs_Active.ParRate_LegA
+        dbl_ActiveATMStrike = strikeQJK
         If dbl_ActiveATMStrike < dbl_MinStrike Then dbl_ActiveATMStrike = dbl_MinStrike
         dbl_ActiveCapVol = rng_ShockedCapVols(int_CapCtr, 1).Value
         If dbl_ActiveCapVol = 0 Then dbl_ActiveCapVol = 0.000001
-        'dbl_ActiveCapPrice = irl_Floating.Calc_BSOptionValue(enu_Direction, dbl_ActiveATMStrike, int_Deduction, cal_Deduction, True, , _
-            dbl_ActiveCapVol)
-            dbl_ActiveCapPrice = irl_Floating.Calc_BSOptionValue(enu_Direction, dbl_ActiveATMStrike, int_Deduction, cal_Deduction, True, , _
-            dbl_ActiveCapVol)   'QJK code 30/01/2014 doesnt take first caplet into account.
+
+        ' Doesnt take first caplet into account.
+        dbl_ActiveCapPrice = irl_Floating.Calc_BSOptionValue(enu_Direction, dbl_ActiveATMStrike, int_Deduction, cal_Deduction, True, ,dbl_ActiveCapVol)
 
         Debug.Print " cap price  " & fld_Params.LegA.Term & dbl_ActiveCapPrice
-        sumCapPremiums(int_CapCtr) = dbl_ActiveCapPrice   'QCode 11/08/2014--i.e. (1)=1,(2)=1+2,(3)=1+2+3, etc
-        'calculates cap premium
-        'Public Function Calc_BSOptionValue(enu_Direction As OptionDirection, dbl_Strike As Double, int_Deduction As Integer, _
-    cal_Deduction As Calendar, bln_IsDiscounted As Boolean, Optional dblLst_CapletVols As Collection = Nothing, _
-    Optional dbl_CapVol As Double = -1, Optional str_ValueType As String = "PNL", Optional int_CapletIndex As Integer = -1) As Double
+        sumCapPremiums(int_CapCtr) = dbl_ActiveCapPrice   'i.e. (1)=1,(2)=1+2,(3)=1+2+3, etc
+    Next int_CapCtr
 
-    Next int_CapCtr                       'Qcode 11/08/2014
-
-     ' fld_Params.LegA.Term = getCapletTerms(int_CapletCtr, fld_Params.LegA.PmtFreq)
-
-    For int_CapCtr = 1 To int_NumCaps     'Qcode 11/08/2014
-
-
-            ' Find index of latest caplet falling within the cap period
+    For int_CapCtr = 1 To int_NumCaps
+        ' Find index of latest caplet falling within the cap period
         fld_Params.LegA.Term = rng_CapTerms(int_CapCtr, 1).Value
         fld_Params.LegB.Term = fld_Params.LegA.Term
 
         Set irs_Active = GetInst_IRS(fld_Params, dic_CurveSet, dic_GlobalStaticInfo)
         Set irl_Floating = irs_Active.LegB
-        'int_ActiveFinalIndex = Calc_NumPeriods(irl_Floating.Params.Term, fld_LegParams.PmtFreq) - 1
+
         int_ActiveFinalIndex = Calc_NumPeriods(irl_Floating.Params.Term, fld_LegParams.PmtFreq)
         Call intLst_InterpPillars.Add(int_ActiveFinalIndex)
-        dbl_ActiveCapVol = rng_ShockedCapVols(int_CapCtr, 1).Value    ''Qcode 11/08/2014
+        dbl_ActiveCapVol = rng_ShockedCapVols(int_CapCtr, 1).Value
+
         ' Store static parameters for secant solver
         Set dic_SecantParams = New Dictionary
         Call dic_SecantParams.Add("cvl_Curve", Me)
@@ -1089,7 +1066,7 @@ Public Sub Bootstrap_QJK(bln_CopyToOrig As Boolean)
         Call dic_SecantParams.Add("rng_HolDates", cal_Deduction.HolDates)
         Call dic_SecantParams.Add("str_Weekends", cal_Deduction.Weekends)
 
-                'consistency check
+        ' Consistency Check
         Dim col_fwdrate As Collection
         Set col_fwdrate = New Collection
         Dim k As Variant
@@ -1107,96 +1084,77 @@ Public Sub Bootstrap_QJK(bln_CopyToOrig As Boolean)
             CCResult = Me.ConsistencyCheck(enu_Direction, irl_Floating, col_fwdrate, int_CapCtr, int_CCFail, dbl_ActiveATMStrike, PrevCapPremium, sumCapPremiums(int_CapCtr), intLst_InterpPillars)
         End If
 
-         If int_CapCtr = 1 Then
-         end_FirstCap = int_ActiveFinalIndex 'QCode 11/08/2014, just find last caplet that falls within the first cap period"
-         For j = 1 To end_FirstCap 'QJK code 29/01/2015
-         'blArr_FinalVols(J) = dbl_ActiveCapVol 'QJK code 29/01/2015
-         dblArr_FinalVols(j) = dbl_ActiveCapVol 'QJK code 30/01/2015
-         bln_CalibrationSolved(j) = True
-         Next j 'QJK code 29/01/2015
+        If int_CapCtr = 1 Then
+            ' Just find last caplet that falls within the first cap period
+            end_FirstCap = int_ActiveFinalIndex
+            For j = 1 To end_FirstCap
+                dblArr_FinalVols(j) = dbl_ActiveCapVol
+                bln_CalibrationSolved(j) = True
+            Next j
 
-         GoTo Label2: 'QJK code 29/01/2015
-         End If 'QJK code 29/01/2015
-      '  For j = 2 To int_NumCaplets       'Qcode 11/08/2014
+            GoTo Label2:
+        End If
 
         If CCResult = True Then
-
-
         ' Solve using secant method
         Set dic_SecantOutputs = New Dictionary
-            'If int_CapCtr <= end_FirstCap Then     'Qcode 08/08/2014
-            'temp(j) = dbl_ActiveCapVol    'Qcode 08/08/2014: caplets in the first cap pillar are FLAT.
-           ' Else 'Qcode 08/08/2014
-           ' temp(j)=
 
-           dbl_ActiveCapletVol = Solve_SecantQJK(ThisWorkbook, "SolverFuncXY_CapletVolToPriceCFSurfaceInterpolateonFWD", dic_SecantParams, _
-                dbl_ActiveCapVol, dbl_ActiveCapVol + 1, sumCapPremiums(int_CapCtr), 0.0000000001, 60, -1, dic_SecantOutputs)
-            'End If                     'Qcode 08/08/2014
+        dbl_ActiveCapletVol = Solve_SecantQJK(ThisWorkbook, "SolverFuncXY_CapletVolToPriceCFSurfaceInterpolateonFWD", dic_SecantParams, _
+            dbl_ActiveCapVol, dbl_ActiveCapVol + 1, sumCapPremiums(int_CapCtr), 0.0000000001, 60, -1, dic_SecantOutputs)
 
         ' Final solution will be shown in the cell, if no solution found, show error value
         If dic_SecantOutputs("Solvable") = True And dbl_ActiveCapletVol >= 0 Then
             dbl_PrevCapletVol = dbl_ActiveCapletVol
             Debug.Print dbl_ActiveCapletVol & " was successful  " & int_ActiveFinalIndex
 
-            For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1 'QJK code 30/01/2015
-            bln_CalibrationSolved(j) = True  'QJK code 30/01/2015
-            'dblArr_FinalVols(J) = Me.Lookup_Vol(lngArr_FinalDates_Caplet(J), intLst_InterpPillars, False)
-            Next j   'QJK code 30/01/2015
+            For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                bln_CalibrationSolved(j) = True
+            Next j
+
             If int_CCFail = 0 Then
                 For int_CapletCtr = int_PrevFinalIndex To int_ActiveFinalIndex
                     If bln_CalibrationSolved(int_CapletCtr) = True Then
-                    'dblArr_FinalVols(int_CapletCtr) = Me.Lookup_Vol(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
-                    dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)  'QJK code 02/02/2015
+                        dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
                     End If
                 Next int_CapletCtr
             Else
                 For int_CapletCtr = int_PreviousCapletsNum To int_ActiveFinalIndex
                     If bln_CalibrationSolved(int_CapletCtr) = True Then
-                        'dblArr_FinalVols(int_CapletCtr) = Me.Lookup_Vol(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
-                        dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)  'QJK code 02/02/2015
+                        dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
                     End If
                 Next int_CapletCtr
             End If
-
         Else
-
             Call intLst_FailedPoints.Add(int_ActiveFinalIndex)
-            For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1  'QJK code 30/01/2015
-            bln_CalibrationSolved(j) = False  'QJK code 30/01/2015
-            Next j  'QJK code 30/01/2015
-            Debug.Print "## ERROR - Caplet volatility could not be solved for " & str_CurveName & " " _
-                & irl_Floating.Params.Term
+            For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                bln_CalibrationSolved(j) = False
+            Next j
+
+            Debug.Print "## ERROR - Caplet volatility could not be solved for " & str_CurveName & " " & irl_Floating.Params.Term
 
             bln_calibrationfailed = True
 
-          '  dblArr_FinalVols(int_Index)--final vols filled
+            '  dblArr_FinalVols(int_Index)--final vols filled
             ' Fall back to the previous pillar vol
-
-            'If int_PrevFinalIndex <> 0 Then
-                Select Case str_OnFail    '02022015 QJK code commented out for experiment
-                    Case "FLAT": Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_PrevCapletVol)
-                    Case "ZERO", "PAR":
+            Select Case str_OnFail
+                Case "FLAT": Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_PrevCapletVol)
+                Case "ZERO", "PAR":
                     Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_MinVol)
 
-                        If bln_CalibrationSolved(int_PrevFinalIndex) = True Then   'QJK code 30/01/2015
+                    If bln_CalibrationSolved(int_PrevFinalIndex) = True Then
                         'last caplet was solved so linearly interpolate between last caplet and min vol
-                         For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1  'QJK code 30/01/2015
-                        ' dblArr_FinalVols(J) = Me.Lookup_Vol(lngArr_FinalDates_Caplet(J), intLst_InterpPillars, False)                            'QJK code 30/01/2015
-                         dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)      'QJK code 02/02/2015
-                          Next j  'QJK code 30/01/2015
-
-
-                        ElseIf bln_CalibrationSolved(int_PrevFinalIndex) = False Then
+                        For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                            dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)
+                        Next j
+                    ElseIf bln_CalibrationSolved(int_PrevFinalIndex) = False Then
                         'last caplet failed, keep points in between at minvol
-                        For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1  'QJK code 30/01/2015
-                        dblArr_FinalVols(j) = dbl_MinVol 'QJK code 30/01/2015
-                        Next j  'QJK code 30/01/2015
-                        End If
-
-                End Select
-            'End If
+                        For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                            dblArr_FinalVols(j) = dbl_MinVol
+                        Next j
+                    End If
+            End Select
         End If
-Label2: 'QJK code 29/01/2015
+Label2:
         int_PrevFinalIndex = int_ActiveFinalIndex
         int_CCFail = 0
 
@@ -1212,14 +1170,12 @@ Label2: 'QJK code 29/01/2015
                 int_skipcap = intLst_InterpPillars.count
                 Call intLst_InterpPillars.Remove(int_skipcap)
 
-                Debug.Print "consistency check failed - " & " " & str_CurveName & " " _
-                & irl_Floating.Params.Term
+                Debug.Print "consistency check failed - " & " " & str_CurveName & " " & irl_Floating.Params.Term
             Else
-                Select Case str_OnFail    '02022015 QJK code commented out for experiment
+                Select Case str_OnFail
                     Case "FLAT": Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_PrevCapletVol)
                     Case "ZERO", "PAR":
-
-                        If bln_CalibrationSolved(int_PrevFinalIndex) = True Then   'QJK code 30/01/2015
+                        If bln_CalibrationSolved(int_PrevFinalIndex) = True Then
                             'last caplet was solved so linearly interpolate between last caplet and min vol for first failed pillar
                             'the remaining caplets are using minvol
                             If int_CCFail <> 0 And int_CapCtr = int_NumCaps Then
@@ -1229,76 +1185,45 @@ Label2: 'QJK code 29/01/2015
                                 Call intLst_InterpPillars.Remove(int_lastcap)
                                 Call intLst_InterpPillars.Add(int_1stccfailpillar)
 
-                             For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1  'QJK code 30/01/2015
-                            ' dblArr_FinalVols(J) = Me.Lookup_Vol(lngArr_FinalDates_Caplet(J), intLst_InterpPillars, False)                            'QJK code 30/01/2015
-                             dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)      'QJK code 02/02/2015
-                              Next j  'QJK code 30/01/2015
-                             For j = int_ActiveFinalIndex To (int_1stccfailpillar + 1) Step -1  'QJK code 30/01/2015
-                            ' dblArr_FinalVols(J) = Me.Lookup_Vol(lngArr_FinalDates_Caplet(J), intLst_InterpPillars, False)                            'QJK code 30/01/2015
-                             dblArr_FinalVols(j) = dbl_MinVol      'QJK code 02/02/2015
-                              Next j  'QJK code 30/01/2015
+                                For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                                    dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)
+                                Next j
+                                For j = int_ActiveFinalIndex To (int_1stccfailpillar + 1) Step -1
+                                    dblArr_FinalVols(j) = dbl_MinVol
+                                Next j
                             Else
-                             Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_MinVol)
-                             For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1  'QJK code 30/01/2015
-                            ' dblArr_FinalVols(J) = Me.Lookup_Vol(lngArr_FinalDates_Caplet(J), intLst_InterpPillars, False)                            'QJK code 30/01/2015
-                             dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)      'QJK code 02/02/2015
-                              Next j  'QJK code 30/01/2015
+                                Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_MinVol)
+                                For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                                    dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)
+                                Next j
                             End If
-
                         ElseIf bln_CalibrationSolved(int_PrevFinalIndex) = False Then
-                        'last caplet failed, keep points in between at minvol
-                        For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1  'QJK code 30/01/2015
-                        dblArr_FinalVols(j) = dbl_MinVol 'QJK code 30/01/2015
-                        Next j  'QJK code 30/01/2015
+                            'last caplet failed, keep points in between at minvol
+                            For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                                dblArr_FinalVols(j) = dbl_MinVol
+                            Next j
                         End If
-                    Debug.Print "consistency check failed - " & " " & str_CurveName & " " _
-                    & irl_Floating.Params.Term
-
+                    Debug.Print "consistency check failed - " & " " & str_CurveName & " " & irl_Floating.Params.Term
                 End Select
-
             End If
-          End If
-
-  '  Next j   'Qcode 11/08/2014
+        End If
     Next int_CapCtr
 
     ' Fill in interpolated caplet pillars
     For int_CapletCtr = end_FirstCap To int_NumCaplets
         If bln_CalibrationSolved(int_CapletCtr) = True Then
-           'dblArr_FinalVols(int_CapletCtr) = Me.Lookup_Vol(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
-           dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)  'QJK code 02/02/2015
-
+           dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
         End If
     Next int_CapletCtr
-
-
-    'If str_OnFail = "PAR" Then
-     '   ' After interpolation, replace failed pillars with interpolated par vols
-     '   Dim dblArr_CapVols() As Double: dblArr_CapVols = Convert_RangeToDblArr(rng_ShockedCapVols)
-      '  Dim var_ActiveIndex As Variant, lng_ActiveCapletMat As Long
-
-     '   For Each var_ActiveIndex In intLst_FailedPoints
-     '       lng_ActiveCapletMat = lngArr_FinalDates_Caplet(var_ActiveIndex)
-     '       dblArr_FinalVols(var_ActiveIndex) = Interp_Lin(lngArr_FinalDates_Cap, dblArr_CapVols, lng_ActiveCapletMat, True)
-     '   Next var_ActiveIndex
-
-      '  ' Check zero vols should really be zero by re-interpolating
-      '  For int_CapletCtr = 1 To int_NumCaplets
-      '      If Round(dblArr_FinalVols(int_CapletCtr), 8) = dbl_MinVol Then
-     '           dblArr_FinalVols(int_CapletCtr) = Me.Lookup_Vol(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
-     '       End If
-      '  Next int_CapletCtr
-   ' End If
 
     ' Output to sheet
     rng_FinalVols.Value = Convert_Array1Dto2D(dblArr_FinalVols)
     If bln_CopyToOrig = True Then rng_OrigCapletVols.Value = rng_FinalVols.Value
-     rng_CalibrationSolved = Convert_Array1Dto2D(bln_CalibrationSolved)   'QJK code 02/02/2014
+    rng_CalibrationSolved = Convert_Array1Dto2D(bln_CalibrationSolved)
     Application.StatusBar = False
     Application.ScreenUpdating = bln_ScreenUpdating
+
 End Sub
-
-
 
 Public Sub Bootstrap_ParVols(bln_CopyToOrig As Boolean)
     Dim bln_ScreenUpdating As Boolean: bln_ScreenUpdating = Application.ScreenUpdating
@@ -1562,25 +1487,25 @@ Label2:
 End Sub
 
 Public Function getCapletTerms(intCaplet As Integer, freq As String) As String
-Dim temp As String
-Dim yearsInt As Integer, monthsInt As Integer
-Dim freqInt As Integer: freqInt = calc_nummonths(freq)
+    Dim temp As String
+    Dim yearsInt As Integer, monthsInt As Integer
+    Dim freqInt As Integer: freqInt = calc_nummonths(freq)
 
-monthsInt = freqInt * (intCaplet)
+    monthsInt = freqInt * (intCaplet)
 
-If monthsInt >= 12 Then
-yearsInt = Int(monthsInt / 12)
-monthsInt = monthsInt - (yearsInt * 12)
-    If monthsInt = 0 Then
-    temp = yearsInt & "Y"
+    If monthsInt >= 12 Then
+    yearsInt = Int(monthsInt / 12)
+    monthsInt = monthsInt - (yearsInt * 12)
+        If monthsInt = 0 Then
+        temp = yearsInt & "Y"
+        Else
+        temp = yearsInt & "Y," & monthsInt & "M"
+        End If
     Else
-    temp = yearsInt & "Y," & monthsInt & "M"
+    temp = monthsInt & "M"
     End If
-Else
-temp = monthsInt & "M"
-End If
 
-getCapletTerms = temp
+    getCapletTerms = temp
 
 End Function
 
@@ -1608,81 +1533,78 @@ Public Function Lookup_VolSeriesParVols(int_FinalIndex As Integer, Optional intL
 'End Function
 End Function
 
-
-
-
 Public Function TMR_KSpline(X_Array As Variant, Y_Array As Variant, x As Double, _
                     Optional yt_1 As Double = 0, Optional q_n As Double = 0, _
                     Optional FlatEnds As Boolean = False, _
                     Optional LinearEnds As Boolean = True) As Double
-'normally YT_1=-0.5 AND q_n=0.5
-'Edited SRS Cubic spline - adapted from Numerical Recipes in C
-Dim iCnt As Integer
-'' Kspline.TMR_KSplineInternal(capMatDates, capVols, parVolDates(i), 0, 0, False, False)
-iCnt = WorksheetFunction.CountA(X_Array)
+    'normally YT_1=-0.5 AND q_n=0.5
+    'Edited SRS Cubic spline - adapted from Numerical Recipes in C
+    Dim iCnt As Integer
+    '' Kspline.TMR_KSplineInternal(capMatDates, capVols, parVolDates(i), 0, 0, False, False)
+    iCnt = WorksheetFunction.CountA(X_Array)
 
-'''''''''''''''''''''''''''''''''''''''
-' values are populated
-'''''''''''''''''''''''''''''''''''''''
-Dim n As Integer 'n=iCnt
-Dim i As Integer, j As Integer, k As Integer 'these are loop counting integers
-Dim p, qn, sig, un As Double
-ReDim U(iCnt - 1) As Double
-ReDim yt(iCnt) As Double 'these are the 2nd deriv values
+    '''''''''''''''''''''''''''''''''''''''
+    ' values are populated
+    '''''''''''''''''''''''''''''''''''''''
+    Dim n As Integer 'n=iCnt
+    Dim i As Integer, j As Integer, k As Integer 'these are loop counting integers
+    Dim p, qn, sig, un As Double
+    ReDim U(iCnt - 1) As Double
+    ReDim yt(iCnt) As Double 'these are the 2nd deriv values
 
-n = iCnt
-yt(1) = yt_1
-U(1) = 0
+    n = iCnt
+    yt(1) = yt_1
+    U(1) = 0
 
-For i = 2 To n - 1
-    sig = (X_Array(i) - X_Array(i - 1)) / (X_Array(i + 1) - X_Array(i - 1))
-    p = sig * yt(i - 1) + 2
-    yt(i) = (sig - 1) / p
-    U(i) = (Y_Array(i + 1) - Y_Array(i)) / (X_Array(i + 1) - X_Array(i)) - (Y_Array(i) - Y_Array(i - 1)) / (X_Array(i) - X_Array(i - 1))
-    U(i) = (6 * U(i) / (X_Array(i + 1) - X_Array(i - 1)) - sig * U(i - 1)) / p
-Next i
+    For i = 2 To n - 1
+        sig = (X_Array(i) - X_Array(i - 1)) / (X_Array(i + 1) - X_Array(i - 1))
+        p = sig * yt(i - 1) + 2
+        yt(i) = (sig - 1) / p
+        U(i) = (Y_Array(i + 1) - Y_Array(i)) / (X_Array(i + 1) - X_Array(i)) - (Y_Array(i) - Y_Array(i - 1)) / (X_Array(i) - X_Array(i - 1))
+        U(i) = (6 * U(i) / (X_Array(i + 1) - X_Array(i - 1)) - sig * U(i - 1)) / p
+    Next i
 
-qn = q_n
-un = 0
+    qn = q_n
+    un = 0
 
-yt(n) = (un - qn * U(n - 1)) / (qn * yt(n - 1) + 1)
+    yt(n) = (un - qn * U(n - 1)) / (qn * yt(n - 1) + 1)
 
-For k = n - 1 To 1 Step -1
-    yt(k) = yt(k) * yt(k + 1) + U(k)
-Next k
+    For k = n - 1 To 1 Step -1
+        yt(k) = yt(k) * yt(k + 1) + U(k)
+    Next k
 
-''''''''''''''''''''
-'now eval spline at one point
-'''''''''''''''''''''
-Dim klo As Integer, khi As Integer, h As Double, B As Double, A As Double, outCnt As Integer
-outCnt = WorksheetFunction.CountA(x)
-' first find correct interval
-ReDim y(1 To outCnt, 1 To 1)
-For i = 1 To outCnt
-    klo = 1: khi = 2
-    If FlatEnds And x <= X_Array(1) Then
-        y(i, 1) = Y_Array(1)
-    ElseIf FlatEnds And x >= X_Array(n) Then
-        y(i, 1) = Y_Array(n)
-    ElseIf LinearEnds And x <= X_Array(1) Then
-        y(i, 1) = Y_Array(1) + (Y_Array(2) - Y_Array(1)) / (X_Array(2) - X_Array(1)) * (x - X_Array(1))
-    ElseIf LinearEnds And x >= X_Array(n) Then
-        y(i, 1) = Y_Array(n) + (Y_Array(n) - Y_Array(n - 1)) / (X_Array(n) - X_Array(n - 1)) * (x - X_Array(n))
-    Else
-        For j = 1 To n - 2
-            If x < X_Array(khi) Then Exit For
-            klo = klo + 1
-            khi = khi + 1
-        Next j
+    ''''''''''''''''''''
+    'now eval spline at one point
+    '''''''''''''''''''''
+    Dim klo As Integer, khi As Integer, h As Double, B As Double, A As Double, outCnt As Integer
+    outCnt = WorksheetFunction.CountA(x)
+    ' first find correct interval
+    ReDim y(1 To outCnt, 1 To 1)
+    For i = 1 To outCnt
+        klo = 1: khi = 2
+        If FlatEnds And x <= X_Array(1) Then
+            y(i, 1) = Y_Array(1)
+        ElseIf FlatEnds And x >= X_Array(n) Then
+            y(i, 1) = Y_Array(n)
+        ElseIf LinearEnds And x <= X_Array(1) Then
+            y(i, 1) = Y_Array(1) + (Y_Array(2) - Y_Array(1)) / (X_Array(2) - X_Array(1)) * (x - X_Array(1))
+        ElseIf LinearEnds And x >= X_Array(n) Then
+            y(i, 1) = Y_Array(n) + (Y_Array(n) - Y_Array(n - 1)) / (X_Array(n) - X_Array(n - 1)) * (x - X_Array(n))
+        Else
+            For j = 1 To n - 2
+                If x < X_Array(khi) Then Exit For
+                klo = klo + 1
+                khi = khi + 1
+            Next j
 
-        h = X_Array(khi) - X_Array(klo)
-        A = (X_Array(khi) - x) / h
-        B = (x - X_Array(klo)) / h
-        y(i, 1) = A * Y_Array(klo) + B * Y_Array(khi) + ((A ^ 3 - A) * yt(klo) + (B ^ 3 - B) * yt(khi)) * (h ^ 2) / 6
-    End If
-Next i
+            h = X_Array(khi) - X_Array(klo)
+            A = (X_Array(khi) - x) / h
+            B = (x - X_Array(klo)) / h
+            y(i, 1) = A * Y_Array(klo) + B * Y_Array(khi) + ((A ^ 3 - A) * yt(klo) + (B ^ 3 - B) * yt(khi)) * (h ^ 2) / 6
+        End If
+    Next i
 
-TMR_KSpline = y(1, 1)
+    TMR_KSpline = y(1, 1)
 
 End Function
 
@@ -1690,92 +1612,90 @@ Public Function TMR_KSplineInternal(X_Array() As Double, Y_Array() As Double, x 
                     Optional yt_1 As Double = 0, Optional q_n As Double = 0, _
                     Optional FlatEnds As Boolean = False, _
                     Optional LinearEnds As Boolean = True) As Double
-'normally YT_1=-0.5 AND q_n=0.5
-'Edited SRS Cubic spline - adapted from Numerical Recipes in C
-Dim iCnt As Integer
+    'normally YT_1=-0.5 AND q_n=0.5
+    'Edited SRS Cubic spline - adapted from Numerical Recipes in C
+    Dim iCnt As Integer
 
-iCnt = WorksheetFunction.CountA(X_Array)
+    iCnt = WorksheetFunction.CountA(X_Array)
 
-'''''''''''''''''''''''''''''''''''''''
-' values are populated
-'''''''''''''''''''''''''''''''''''''''
-Dim n As Integer 'n=iCnt
-Dim i As Integer, k As Integer  'these are loop counting integers
-Dim p, qn, sig, un As Double
-ReDim U(iCnt - 1) As Double
-ReDim yt(iCnt) As Double 'these are the 2nd deriv values
+    '''''''''''''''''''''''''''''''''''''''
+    ' values are populated
+    '''''''''''''''''''''''''''''''''''''''
+    Dim n As Integer 'n=iCnt
+    Dim i As Integer, k As Integer  'these are loop counting integers
+    Dim p, qn, sig, un As Double
+    ReDim U(iCnt - 1) As Double
+    ReDim yt(iCnt) As Double 'these are the 2nd deriv values
 
-n = iCnt
-yt(1) = yt_1
-U(1) = 0
+    n = iCnt
+    yt(1) = yt_1
+    U(1) = 0
 
-For i = 2 To n - 1
-    sig = (X_Array(i) - X_Array(i - 1)) / (X_Array(i + 1) - X_Array(i - 1))
-    p = sig * yt(i - 1) + 2
-    yt(i) = (sig - 1) / p
-    U(i) = (Y_Array(i + 1) - Y_Array(i)) / (X_Array(i + 1) - X_Array(i)) - (Y_Array(i) - Y_Array(i - 1)) / (X_Array(i) - X_Array(i - 1))
-    U(i) = (6 * U(i) / (X_Array(i + 1) - X_Array(i - 1)) - sig * U(i - 1)) / p
-Next i
+    For i = 2 To n - 1
+        sig = (X_Array(i) - X_Array(i - 1)) / (X_Array(i + 1) - X_Array(i - 1))
+        p = sig * yt(i - 1) + 2
+        yt(i) = (sig - 1) / p
+        U(i) = (Y_Array(i + 1) - Y_Array(i)) / (X_Array(i + 1) - X_Array(i)) - (Y_Array(i) - Y_Array(i - 1)) / (X_Array(i) - X_Array(i - 1))
+        U(i) = (6 * U(i) / (X_Array(i + 1) - X_Array(i - 1)) - sig * U(i - 1)) / p
+    Next i
 
-qn = q_n
-un = 0
+    qn = q_n
+    un = 0
 
-yt(n) = (un - qn * U(n - 1)) / (qn * yt(n - 1) + 1)
+    yt(n) = (un - qn * U(n - 1)) / (qn * yt(n - 1) + 1)
 
-For k = n - 1 To 1 Step -1
-    yt(k) = yt(k) * yt(k + 1) + U(k)
-Next k
+    For k = n - 1 To 1 Step -1
+        yt(k) = yt(k) * yt(k + 1) + U(k)
+    Next k
 
-''''''''''''''''''''
-'now eval spline at one point
-'''''''''''''''''''''
-Dim klo As Integer, khi As Integer, h As Double, B As Double, A As Double, outCnt As Integer
-outCnt = WorksheetFunction.CountA(x)
-' first find correct interval
-ReDim y(1 To outCnt, 1 To 1)
-For i = 1 To outCnt
-    klo = 1: khi = 2
-    If FlatEnds And x <= X_Array(1) Then
-        y(i, 1) = Y_Array(1)
-    ElseIf FlatEnds And x >= X_Array(n) Then
-        y(i, 1) = Y_Array(n)
-    ElseIf LinearEnds And x <= X_Array(1) Then
-        y(i, 1) = Y_Array(1) + (Y_Array(2) - Y_Array(1)) / (X_Array(2) - X_Array(1)) * (x - X_Array(1))
-    ElseIf LinearEnds And x >= X_Array(n) Then
-        y(i, 1) = Y_Array(n) + (Y_Array(n) - Y_Array(n - 1)) / (X_Array(n) - X_Array(n - 1)) * (x - X_Array(n))
-    Else
-        For j = 1 To n - 2
-            If x < X_Array(khi) Then Exit For
-            klo = klo + 1
-            khi = khi + 1
-        Next j
+    ''''''''''''''''''''
+    'now eval spline at one point
+    '''''''''''''''''''''
+    Dim klo As Integer, khi As Integer, h As Double, B As Double, A As Double, outCnt As Integer
+    outCnt = WorksheetFunction.CountA(x)
+    ' first find correct interval
+    ReDim y(1 To outCnt, 1 To 1)
+    For i = 1 To outCnt
+        klo = 1: khi = 2
+        If FlatEnds And x <= X_Array(1) Then
+            y(i, 1) = Y_Array(1)
+        ElseIf FlatEnds And x >= X_Array(n) Then
+            y(i, 1) = Y_Array(n)
+        ElseIf LinearEnds And x <= X_Array(1) Then
+            y(i, 1) = Y_Array(1) + (Y_Array(2) - Y_Array(1)) / (X_Array(2) - X_Array(1)) * (x - X_Array(1))
+        ElseIf LinearEnds And x >= X_Array(n) Then
+            y(i, 1) = Y_Array(n) + (Y_Array(n) - Y_Array(n - 1)) / (X_Array(n) - X_Array(n - 1)) * (x - X_Array(n))
+        Else
+            For j = 1 To n - 2
+                If x < X_Array(khi) Then Exit For
+                klo = klo + 1
+                khi = khi + 1
+            Next j
 
-        h = X_Array(khi) - X_Array(klo)
-        A = (X_Array(khi) - x) / h
-        B = (x - X_Array(klo)) / h
-        y(i, 1) = A * Y_Array(klo) + B * Y_Array(khi) + ((A ^ 3 - A) * yt(klo) + (B ^ 3 - B) * yt(khi)) * (h ^ 2) / 6
-    End If
-Next i
+            h = X_Array(khi) - X_Array(klo)
+            A = (X_Array(khi) - x) / h
+            B = (x - X_Array(klo)) / h
+            y(i, 1) = A * Y_Array(klo) + B * Y_Array(khi) + ((A ^ 3 - A) * yt(klo) + (B ^ 3 - B) * yt(khi)) * (h ^ 2) / 6
+        End If
+    Next i
 
-TMR_KSplineInternal = y(1, 1)
+    TMR_KSplineInternal = y(1, 1)
 
 End Function
-
-
-
 
 Public Function getParVolDates(freq As String, couponstartdate As Long, nRows As Integer) As Double()
-Dim temp() As Double, freqInt As Integer: 'nrows=number of caplets
-ReDim temp(1 To nRows) As Double
-Dim i As Double, tempInt As Integer: tempInt = calc_nummonths(freq)
+    Dim temp() As Double, freqInt As Integer: 'nrows=number of caplets
+    ReDim temp(1 To nRows) As Double
+    Dim i As Double, tempInt As Integer: tempInt = calc_nummonths(freq)
 
-For i = 1 To nRows
-'temp(i) = WorksheetFunction.EDate(couponstartdate, (i) * tempInt)
-temp(i) = date_addterm(couponstartdate, (i) * tempInt & "M", 1, True)
-Next i
+    For i = 1 To nRows
+    'temp(i) = WorksheetFunction.EDate(couponstartdate, (i) * tempInt)
+    temp(i) = date_addterm(couponstartdate, (i) * tempInt & "M", 1, True)
+    Next i
 
-getParVolDates = temp
+    getParVolDates = temp
 End Function
+
 Public Function Solve_SecantQJK(wbk_Caller As Workbook, str_XYFunction As String, dic_StaticParams As Dictionary, _
     dbl_InitialX1 As Double, dbl_InitialX2 As Double, dbl_TargetY As Double, dbl_Tolerance As Double, _
     int_MaxIterations As Integer, dbl_FallBackValue As Double, ByRef dic_SecondaryOutputs As Dictionary) As Double
@@ -1867,7 +1787,7 @@ End Function
 
 
 Public Function ConsistencyCheck(enu_Direction As OptionDirection, irl_Floating As IRLeg, col_fwdrate As Collection, int_CapCtr As Integer, int_CCFail As Integer, _
-strike As Double, PreviousCapPremiums As Double, CapPremiums As Double, Optional intLst_InterpPillars As Collection = Nothing) As String
+                                    strike As Double, PreviousCapPremiums As Double, CapPremiums As Double, Optional intLst_InterpPillars As Collection = Nothing) As String
     Dim str_PreviousCapMat As String
     Dim str_LastCapMat As String
     Dim int_NumCaplets As Integer: int_NumCaplets = Me.NumCaplets
@@ -1918,7 +1838,6 @@ strike As Double, PreviousCapPremiums As Double, CapPremiums As Double, Optional
         Next i
     End If
 
-
     dbl_CurrentCapPrice = CapPremiums
     int_IntCaplet = int_LastCapletsNum - int_PreviousCapletsNum
 
@@ -1947,4 +1866,3 @@ strike As Double, PreviousCapPremiums As Double, CapPremiums As Double, Optional
     End If
 
 End Function
-
