@@ -1027,7 +1027,7 @@ Public Sub Bootstrap_QJK(bln_CopyToOrig As Boolean)
         fld_Params.LegA.Term = rng_CapTerms(int_CapCtr, 1).Value
         fld_Params.LegB.Term = fld_Params.LegA.Term
         Set irs_Active = GetInst_IRS(fld_Params, dic_CurveSet, dic_GlobalStaticInfo)
-        Set irl_Floating = irs_Active.
+        Set irl_Floating = irs_Active.LegB
 
         strikeQJK = rngStrikeQJK.Value
         dbl_ActiveATMStrike = strikeQJK
