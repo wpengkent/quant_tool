@@ -1023,6 +1023,9 @@ Public Sub Bootstrap_QJK(bln_CopyToOrig As Boolean)
     Dim end_FirstCap As Double: Dim j As Double
     Dim temp() As Double: ReDim temp(1 To int_NumCaplets) As Double:
 
+    '-------------------------------------------------------------------
+    ' Calculate cap premium for each pillar cap using par vol
+    '-------------------------------------------------------------------
     For int_CapCtr = 1 To int_NumCaps
         fld_Params.LegA.Term = rng_CapTerms(int_CapCtr, 1).Value
         fld_Params.LegB.Term = fld_Params.LegA.Term
@@ -1075,6 +1078,10 @@ Public Sub Bootstrap_QJK(bln_CopyToOrig As Boolean)
             col_fwdrate.Add (k)
         Next k
 
+        '-------------------------------------------------------------------
+        ' Each pillar cap goes through consistency check
+        ' Discard cap premium for those pillars that fail consistency check
+        '-------------------------------------------------------------------
         Dim int_1stccfailpillar As Integer
         Dim int_CCFail As Integer
         Dim CCResult As String
@@ -1095,70 +1102,85 @@ Public Sub Bootstrap_QJK(bln_CopyToOrig As Boolean)
             GoTo Label2:
         End If
 
+        '-------------------------------------------------------------------
+        ' Pass consistency check, use secant method to solve pillar cap vol
+        '-------------------------------------------------------------------
         If CCResult = True Then
-        ' Solve using secant method
-        Set dic_SecantOutputs = New Dictionary
+            ' Solve using secant method
+            Set dic_SecantOutputs = New Dictionary
 
-        dbl_ActiveCapletVol = Solve_SecantQJK(ThisWorkbook, "SolverFuncXY_CapletVolToPriceCFSurfaceInterpolateonFWD", dic_SecantParams, _
-            dbl_ActiveCapVol, dbl_ActiveCapVol + 1, sumCapPremiums(int_CapCtr), 0.0000000001, 60, -1, dic_SecantOutputs)
+            dbl_ActiveCapletVol = Solve_SecantQJK(ThisWorkbook, "SolverFuncXY_CapletVolToPriceCFSurfaceInterpolateonFWD", dic_SecantParams, _
+                dbl_ActiveCapVol, dbl_ActiveCapVol + 1, sumCapPremiums(int_CapCtr), 0.0000000001, 60, -1, dic_SecantOutputs)
 
-        ' Final solution will be shown in the cell, if no solution found, show error value
-        If dic_SecantOutputs("Solvable") = True And dbl_ActiveCapletVol >= 0 Then
-            dbl_PrevCapletVol = dbl_ActiveCapletVol
-            Debug.Print dbl_ActiveCapletVol & " was successful  " & int_ActiveFinalIndex
+            ' Final solution will be shown in the cell, if no solution found, show error value
+            If dic_SecantOutputs("Solvable") = True And dbl_ActiveCapletVol >= 0 Then
+                dbl_PrevCapletVol = dbl_ActiveCapletVol
+                Debug.Print dbl_ActiveCapletVol & " was successful  " & int_ActiveFinalIndex
 
-            For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
-                bln_CalibrationSolved(j) = True
-            Next j
+                For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                    bln_CalibrationSolved(j) = True
+                Next j
 
-            If int_CCFail = 0 Then
-                For int_CapletCtr = int_PrevFinalIndex To int_ActiveFinalIndex
-                    If bln_CalibrationSolved(int_CapletCtr) = True Then
-                        dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
-                    End If
-                Next int_CapletCtr
+                '-----------------------------------------------------------------------
+                ' Linear interpolate caplet vol between calibrated successful pillar cap
+                '-----------------------------------------------------------------------
+                If int_CCFail = 0 Then
+                    For int_CapletCtr = int_PrevFinalIndex To int_ActiveFinalIndex
+                        If bln_CalibrationSolved(int_CapletCtr) = True Then
+                            dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
+                        End If
+                    Next int_CapletCtr
+                Else
+                    For int_CapletCtr = int_PreviousCapletsNum To int_ActiveFinalIndex
+                        If bln_CalibrationSolved(int_CapletCtr) = True Then
+                            dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
+                        End If
+                    Next int_CapletCtr
+                End If
+
+            '---------------------
+            ' Calibration failure
+            '---------------------
             Else
-                For int_CapletCtr = int_PreviousCapletsNum To int_ActiveFinalIndex
-                    If bln_CalibrationSolved(int_CapletCtr) = True Then
-                        dblArr_FinalVols(int_CapletCtr) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(int_CapletCtr), intLst_InterpPillars, False)
-                    End If
-                Next int_CapletCtr
+                Call intLst_FailedPoints.Add(int_ActiveFinalIndex)
+                For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                    bln_CalibrationSolved(j) = False
+                Next j
+
+                Debug.Print "## ERROR - Caplet volatility could not be solved for " & str_CurveName & " " & irl_Floating.Params.Term
+
+                bln_calibrationfailed = True
+
+                '  dblArr_FinalVols(int_Index)--final vols filled
+                Select Case str_OnFail
+                    Case "FLAT": Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_PrevCapletVol)
+                    Case "ZERO", "PAR":
+                        Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_MinVol)
+
+                        If bln_CalibrationSolved(int_PrevFinalIndex) = True Then
+                            'last caplet was solved so linearly interpolate between last caplet and min vol
+                            For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                                dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)
+                            Next j
+                        ElseIf bln_CalibrationSolved(int_PrevFinalIndex) = False Then
+                            'last caplet failed, keep points in between at minvol
+                            For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
+                                dblArr_FinalVols(j) = dbl_MinVol
+                            Next j
+                        End If
+                End Select
             End If
-        Else
-            Call intLst_FailedPoints.Add(int_ActiveFinalIndex)
-            For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
-                bln_CalibrationSolved(j) = False
-            Next j
-
-            Debug.Print "## ERROR - Caplet volatility could not be solved for " & str_CurveName & " " & irl_Floating.Params.Term
-
-            bln_calibrationfailed = True
-
-            '  dblArr_FinalVols(int_Index)--final vols filled
-            ' Fall back to the previous pillar vol
-            Select Case str_OnFail
-                Case "FLAT": Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_PrevCapletVol)
-                Case "ZERO", "PAR":
-                    Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_MinVol)
-
-                    If bln_CalibrationSolved(int_PrevFinalIndex) = True Then
-                        'last caplet was solved so linearly interpolate between last caplet and min vol
-                        For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
-                            dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)
-                        Next j
-                    ElseIf bln_CalibrationSolved(int_PrevFinalIndex) = False Then
-                        'last caplet failed, keep points in between at minvol
-                        For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
-                            dblArr_FinalVols(j) = dbl_MinVol
-                        Next j
-                    End If
-            End Select
-        End If
 Label2:
-        int_PrevFinalIndex = int_ActiveFinalIndex
-        int_CCFail = 0
+            int_PrevFinalIndex = int_ActiveFinalIndex
+            int_CCFail = 0
 
+        '------------------------
+        ' Fail consistency check
+        '------------------------
         Else
+            '----------------------------------------------------------
+            ' Skip to the next pillar if this is not the final pillar
+            '----------------------------------------------------------
             If int_CapCtr <> int_NumCaps Then
                 int_CCFail = int_CCFail + 1
 
@@ -1171,6 +1193,10 @@ Label2:
                 Call intLst_InterpPillars.Remove(int_skipcap)
 
                 Debug.Print "consistency check failed - " & " " & str_CurveName & " " & irl_Floating.Params.Term
+
+            '-----------------------------------
+            ' Last pillar fail consitency check
+            '-----------------------------------
             Else
                 Select Case str_OnFail
                     Case "FLAT": Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_PrevCapletVol)
@@ -1186,21 +1212,21 @@ Label2:
                                 Call intLst_InterpPillars.Add(int_1stccfailpillar)
 
                                 For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
-                                    dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)
+                                    dblArr_FinalVols(j) = dblArr_FinalVols(int_PrevFinalIndex)
                                 Next j
                                 For j = int_ActiveFinalIndex To (int_1stccfailpillar + 1) Step -1
-                                    dblArr_FinalVols(j) = dbl_MinVol
+                                    dblArr_FinalVols(j) = dblArr_FinalVols(int_PrevFinalIndex)
                                 Next j
                             Else
-                                Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_MinVol)
+                                Call Me.SetFinalVol(int_ActiveFinalIndex, dbl_PrevCapletVol)
                                 For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
-                                    dblArr_FinalVols(j) = Me.Lookup_VolCFSurfaceInterpolateOnFWD(lngArr_FinalDates_Caplet(j), intLst_InterpPillars, False)
+                                    dblArr_FinalVols(j) = dblArr_FinalVols(int_PrevFinalIndex)
                                 Next j
                             End If
                         ElseIf bln_CalibrationSolved(int_PrevFinalIndex) = False Then
                             'last caplet failed, keep points in between at minvol
                             For j = int_ActiveFinalIndex To (int_PrevFinalIndex + 1) Step -1
-                                dblArr_FinalVols(j) = dbl_MinVol
+                                dblArr_FinalVols(j) = dblArr_FinalVols(int_PrevFinalIndex)
                             Next j
                         End If
                     Debug.Print "consistency check failed - " & " " & str_CurveName & " " & irl_Floating.Params.Term
